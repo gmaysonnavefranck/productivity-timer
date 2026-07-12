@@ -19,7 +19,7 @@ const createWindow = () => {
   dataPath = path.join(app.getPath('userData'), 'productivity-data.json');
 
   mainWindow = new BrowserWindow({
-    width: 1100,
+    width: 1170,
     height: 720,
     minWidth: 820,
     minHeight: 600,
