@@ -1,14 +1,19 @@
 <script setup>
 import { reactive, onMounted, onUnmounted, ref, computed } from 'vue';
 import CalendarView from './components/CalendarView.vue';
+import KanbanView from './components/KanbanView.vue';
+import Sidebar from './components/Sidebar.vue';
 
 const isLoaded = ref(false);
+const activeView = ref('timers');
 
 const data = reactive({
   lastDate: todayStr(),
   timers: [],
   habits: [],
   days: {},
+  projects: [],
+  cards: [],
 });
 
 function todayStr() {
@@ -30,6 +35,8 @@ async function loadData() {
     data.habits = saved.habits || [];
     data.days = saved.days || {};
     data.lastDate = saved.lastDate || todayStr();
+    data.projects = saved.projects || [];
+    data.cards = saved.cards || [];
   }
 
   const today = todayStr();
@@ -74,6 +81,8 @@ async function saveData() {
     timers: data.timers,
     habits: data.habits,
     days: data.days,
+    projects: data.projects,
+    cards: data.cards,
   })));
 }
 
@@ -217,6 +226,63 @@ function deleteTask(dateStr, taskId) {
   saveData();
 }
 
+// Kanban: projects
+function addProject(projectData) {
+  data.projects.push({ id: uid(), name: projectData.name, color: projectData.color });
+  saveData();
+}
+
+function editProject(id, projectData) {
+  const p = data.projects.find((p) => p.id === id);
+  if (p) { p.name = projectData.name; p.color = projectData.color; }
+  saveData();
+}
+
+function deleteProject(id) {
+  const idx = data.projects.findIndex((p) => p.id === id);
+  if (idx !== -1) data.projects.splice(idx, 1);
+  data.cards = data.cards.filter((c) => c.projectId !== id);
+  saveData();
+}
+
+// Kanban: cards
+function addCard(cardData) {
+  data.cards.push({
+    id: uid(),
+    title: cardData.title,
+    projectId: cardData.projectId,
+    status: cardData.status,
+  });
+  saveData();
+}
+
+function renameCard(id, title) {
+  const c = data.cards.find((c) => c.id === id);
+  if (c) c.title = title;
+  saveData();
+}
+
+function deleteCard(id) {
+  const idx = data.cards.findIndex((c) => c.id === id);
+  if (idx !== -1) data.cards.splice(idx, 1);
+  saveData();
+}
+
+function moveCard(id, { status, beforeCardId, afterCardId }) {
+  if (beforeCardId === id || afterCardId === id) return;
+  const idx = data.cards.findIndex((c) => c.id === id);
+  if (idx === -1) return;
+  const [card] = data.cards.splice(idx, 1);
+  card.status = status;
+  let insertAt;
+  if (beforeCardId) insertAt = data.cards.findIndex((c) => c.id === beforeCardId);
+  else if (afterCardId) insertAt = data.cards.findIndex((c) => c.id === afterCardId) + 1;
+  else insertAt = data.cards.length;
+  if (insertAt === -1) insertAt = data.cards.length;
+  data.cards.splice(insertAt, 0, card);
+  saveData();
+}
+
 // Midnight rollover
 let midnightTimer = null;
 function scheduleMidnight() {
@@ -273,29 +339,44 @@ onUnmounted(() => {
   <div v-if="!isLoaded" class="loading">
     <div class="spinner" />
   </div>
-  <CalendarView
-    v-else
-    :days="data.days"
-    :timers="data.timers"
-    :habits="data.habits"
-    :streak="streak"
-    :today="data.lastDate"
-    @add-task="addTask"
-    @toggle-task="toggleTask"
-    @delete-task="deleteTask"
-    @add-timer="addTimer"
-    @edit-timer="editTimer"
-    @update-timer="updateTimer"
-    @delete-timer="deleteTimer"
-    @reset-timer="resetTimer"
-    @save="saveData"
-    @add-habit="addHabit"
-    @edit-habit="editHabit"
-    @delete-habit="deleteHabit"
-    @toggle-habit="toggleHabit"
-    @update-note="updateNote"
-    @change-date="changeDate"
-  />
+  <template v-else>
+    <Sidebar :active-view="activeView" @change-view="activeView = $event" />
+    <CalendarView
+      v-if="activeView === 'timers'"
+      :days="data.days"
+      :timers="data.timers"
+      :habits="data.habits"
+      :streak="streak"
+      :today="data.lastDate"
+      @add-task="addTask"
+      @toggle-task="toggleTask"
+      @delete-task="deleteTask"
+      @add-timer="addTimer"
+      @edit-timer="editTimer"
+      @update-timer="updateTimer"
+      @delete-timer="deleteTimer"
+      @reset-timer="resetTimer"
+      @save="saveData"
+      @add-habit="addHabit"
+      @edit-habit="editHabit"
+      @delete-habit="deleteHabit"
+      @toggle-habit="toggleHabit"
+      @update-note="updateNote"
+      @change-date="changeDate"
+    />
+    <KanbanView
+      v-else-if="activeView === 'kanban'"
+      :projects="data.projects"
+      :cards="data.cards"
+      @add-project="addProject"
+      @edit-project="editProject"
+      @delete-project="deleteProject"
+      @add-card="addCard"
+      @rename-card="renameCard"
+      @delete-card="deleteCard"
+      @move-card="moveCard"
+    />
+  </template>
 </template>
 
 <style scoped>
