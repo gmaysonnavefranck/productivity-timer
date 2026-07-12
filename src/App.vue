@@ -100,9 +100,11 @@ function editTimer(id, timerData) {
   if (t) {
     t.name = timerData.name;
     t.color = timerData.color;
-    t.totalSeconds = timerData.totalSeconds;
-    t.remainingSeconds = timerData.totalSeconds;
     t.skipWeekends = timerData.skipWeekends ?? false;
+    if (timerData.totalSeconds !== t.totalSeconds) {
+      t.totalSeconds = timerData.totalSeconds;
+      t.remainingSeconds = timerData.totalSeconds;
+    }
   }
   saveData();
 }
