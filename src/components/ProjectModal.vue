@@ -8,12 +8,13 @@ const COLORS = ['#6366f1', '#ec4899', '#22c55e', '#f59e0b', '#3b82f6', '#8b5cf6'
 
 const name = ref(props.initial?.name || '');
 const color = ref(props.initial?.color || COLORS[0]);
+const description = ref(props.initial?.description || '');
 
 const isValid = computed(() => name.value.trim().length > 0);
 
 function submit() {
   if (!isValid.value) return;
-  emit('save', { name: name.value.trim(), color: color.value });
+  emit('save', { name: name.value.trim(), color: color.value, description: description.value.trim() });
 }
 
 onMounted(() => document.getElementById('pm-name')?.focus());
@@ -47,6 +48,15 @@ onMounted(() => document.getElementById('pm-name')?.focus());
             @click="color = c"
           />
         </div>
+      </div>
+
+      <div class="field">
+        <label>Description</label>
+        <textarea
+          v-model="description"
+          rows="3"
+          placeholder="Optional notes…"
+        />
       </div>
 
       <div class="actions">
@@ -94,7 +104,7 @@ onMounted(() => document.getElementById('pm-name')?.focus());
   letter-spacing: 0.6px;
 }
 
-input {
+input, textarea {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -104,8 +114,10 @@ input {
   outline: none;
   transition: border-color 0.15s;
   width: 100%;
+  font-family: inherit;
+  resize: none;
 }
-input:focus { border-color: var(--accent); }
+input:focus, textarea:focus { border-color: var(--accent); }
 
 .colors { display: flex; gap: 7px; flex-wrap: wrap; }
 

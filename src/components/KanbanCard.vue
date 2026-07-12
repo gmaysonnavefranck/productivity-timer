@@ -1,27 +1,20 @@
 <script setup>
-import { ref, nextTick } from 'vue';
+import { ref } from 'vue';
 
 const props = defineProps({ card: Object, projectColor: String, showDot: Boolean });
-const emit = defineEmits(['rename', 'delete', 'dragstart', 'dragend', 'dragover-position', 'drop']);
+const emit = defineEmits(['open', 'delete', 'dragstart', 'dragend', 'dragover-position', 'drop']);
 
-const editing = ref(false);
-const draft = ref('');
 const dropSide = ref(null); // 'before' | 'after' | null
 
-function startEdit() {
-  draft.value = props.card.title;
-  editing.value = true;
-  nextTick(() => document.getElementById(`kc-${props.card.id}`)?.focus());
-}
-
-function commitEdit() {
-  editing.value = false;
-  const trimmed = draft.value.trim();
-  if (trimmed && trimmed !== props.card.title) emit('rename', trimmed);
+function onDragStart(e) {
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', props.card.id);
+  emit('dragstart');
 }
 
 function onDragOver(e) {
   e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
   const rect = e.currentTarget.getBoundingClientRect();
   const before = e.clientY - rect.top < rect.height / 2;
   dropSide.value = before ? 'before' : 'after';
@@ -40,24 +33,19 @@ function onDrop(e) {
     class="kcard"
     :class="{ 'drop-before': dropSide === 'before', 'drop-after': dropSide === 'after' }"
     draggable="true"
-    @dragstart="$emit('dragstart')"
+    @click="$emit('open')"
+    @dragstart="onDragStart"
     @dragend="dropSide = null; $emit('dragend')"
     @dragover="onDragOver"
     @dragleave="dropSide = null"
     @drop="onDrop"
   >
     <span v-if="showDot" class="dot" :style="{ background: projectColor }" />
-    <input
-      v-if="editing"
-      :id="`kc-${card.id}`"
-      v-model="draft"
-      class="title-input"
-      @blur="commitEdit"
-      @keydown.enter="commitEdit"
-      @keydown.escape="editing = false"
-    />
-    <span v-else class="title" @click="startEdit">{{ card.title }}</span>
-    <button class="del-btn" title="Delete" @click="$emit('delete')">
+    <span class="title">{{ card.title }}</span>
+    <svg v-if="card.description" class="desc-icon" title="Has description" width="11" height="11" viewBox="0 0 24 24" fill="none">
+      <path d="M4 4h16v12H8l-4 4V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+    <button class="del-btn" title="Delete" @click.stop="$emit('delete')">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
         <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
@@ -83,17 +71,8 @@ function onDrop(e) {
 .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
 .title { flex: 1; font-size: 12.5px; min-width: 0; word-break: break-word; }
-.title-input {
-  flex: 1;
-  background: var(--bg);
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  color: var(--text);
-  padding: 3px 6px;
-  font-size: 12.5px;
-  outline: none;
-  min-width: 0;
-}
+
+.desc-icon { color: var(--muted); flex-shrink: 0; }
 
 .del-btn {
   width: 20px;

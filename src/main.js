@@ -6,6 +6,10 @@ import { TRAY_ICON_DATA_URL } from './trayIcon.js';
 
 if (started) app.quit();
 
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+}
+
 let dataPath;
 let mainWindow;
 let tray;
@@ -69,6 +73,10 @@ ipcMain.handle('data:save', (_, data) => {
   } catch (err) {
     console.error('Failed to save data:', err);
   }
+});
+
+app.on('second-instance', () => {
+  if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
 });
 
 app.whenReady().then(() => {

@@ -228,13 +228,18 @@ function deleteTask(dateStr, taskId) {
 
 // Kanban: projects
 function addProject(projectData) {
-  data.projects.push({ id: uid(), name: projectData.name, color: projectData.color });
+  data.projects.push({
+    id: uid(),
+    name: projectData.name,
+    color: projectData.color,
+    description: projectData.description || '',
+  });
   saveData();
 }
 
 function editProject(id, projectData) {
   const p = data.projects.find((p) => p.id === id);
-  if (p) { p.name = projectData.name; p.color = projectData.color; }
+  if (p) { p.name = projectData.name; p.color = projectData.color; p.description = projectData.description || ''; }
   saveData();
 }
 
@@ -250,15 +255,16 @@ function addCard(cardData) {
   data.cards.push({
     id: uid(),
     title: cardData.title,
+    description: '',
     projectId: cardData.projectId,
     status: cardData.status,
   });
   saveData();
 }
 
-function renameCard(id, title) {
+function editCard(id, changes) {
   const c = data.cards.find((c) => c.id === id);
-  if (c) c.title = title;
+  if (c) { c.title = changes.title; c.description = changes.description; }
   saveData();
 }
 
@@ -268,7 +274,7 @@ function deleteCard(id) {
   saveData();
 }
 
-function moveCard(id, { status, beforeCardId, afterCardId }) {
+function moveCard({ id, status, beforeCardId, afterCardId }) {
   if (beforeCardId === id || afterCardId === id) return;
   const idx = data.cards.findIndex((c) => c.id === id);
   if (idx === -1) return;
@@ -372,7 +378,7 @@ onUnmounted(() => {
       @edit-project="editProject"
       @delete-project="deleteProject"
       @add-card="addCard"
-      @rename-card="renameCard"
+      @edit-card="editCard"
       @delete-card="deleteCard"
       @move-card="moveCard"
     />

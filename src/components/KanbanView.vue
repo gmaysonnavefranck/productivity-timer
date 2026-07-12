@@ -2,12 +2,15 @@
 import { ref, reactive, computed } from 'vue';
 import KanbanCard from './KanbanCard.vue';
 import ProjectModal from './ProjectModal.vue';
+import CardDetailModal from './CardDetailModal.vue';
 
 const props = defineProps({ projects: Array, cards: Array });
 const emit = defineEmits([
   'add-project', 'edit-project', 'delete-project',
-  'add-card', 'rename-card', 'delete-card', 'move-card',
+  'add-card', 'edit-card', 'delete-card', 'move-card',
 ]);
+
+const openCard = ref(null);
 
 const COLUMNS = [
   { id: 'todo', label: 'To-do' },
@@ -94,7 +97,8 @@ function onCardDragOverPosition({ cardId, before }) {
 
 function onColumnDragOver(e, status) {
   e.preventDefault();
-  if (e.target === e.currentTarget) {
+  e.dataTransfer.dropEffect = 'move';
+  if (!e.target.closest('.kcard')) {
     dropTarget.value = { status, beforeCardId: null, afterCardId: null };
   }
 }
@@ -164,7 +168,7 @@ function onDrop() {
             :card="card"
             :project-color="projectColor(card.projectId)"
             :show-dot="!filterProjectId"
-            @rename="(title) => emit('rename-card', card.id, title)"
+            @open="openCard = card"
             @delete="emit('delete-card', card.id)"
             @dragstart="onDragStart(card.id)"
             @dragend="onDragEnd"
@@ -178,11 +182,22 @@ function onDrop() {
             <option :value="null" disabled>Project…</option>
             <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
-          <input
-            v-model="newCardText[col.id]"
-            placeholder="Add a card…"
-            @keydown.enter="addCard(col.id)"
-          />
+          <div class="add-card-row">
+            <input
+              v-model="newCardText[col.id]"
+              placeholder="Add a card…"
+              @keydown.enter="addCard(col.id)"
+            />
+            <button
+              class="add-btn"
+              :disabled="!newCardText[col.id].trim()"
+              @click="addCard(col.id)"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -192,6 +207,12 @@ function onDrop() {
       :initial="editingProject"
       @save="handleProjectSave"
       @close="showProjectModal = false; editingProject = null"
+    />
+    <CardDetailModal
+      v-if="openCard"
+      :card="openCard"
+      @save="(changes) => { emit('edit-card', openCard.id, changes); openCard = null; }"
+      @close="openCard = null"
     />
   </div>
 </template>
@@ -331,4 +352,22 @@ function onDrop() {
   transition: border-color 0.15s;
 }
 .add-card-form input:focus, .mini-select:focus { border-color: var(--accent); }
+
+.add-card-row { display: flex; gap: 6px; }
+.add-card-row input { flex: 1; min-width: 0; }
+
+.add-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.add-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.add-btn:disabled { opacity: 0.45; cursor: default; }
 </style>
