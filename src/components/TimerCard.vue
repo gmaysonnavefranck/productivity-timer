@@ -1,11 +1,13 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue';
+import { tickRemaining, elapsedSince } from '../timerMath.mjs';
 
 const props = defineProps({ timer: Object });
 const emit = defineEmits(['update', 'delete', 'reset', 'edit', 'save']);
 
 const isRunning = ref(false);
 let intervalId = null;
+let lastTickAt = null;
 
 const RADIUS = 50;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -30,19 +32,18 @@ const timeDisplay = computed(() => {
 });
 
 function tick() {
-  const remaining = props.timer.remainingSeconds;
-  if (remaining <= 0) {
-    stop(true);
-    return;
-  }
-  emit('update', { remainingSeconds: remaining - 1 });
-  if (remaining - 1 <= 0) stop(true);
+  const elapsed = elapsedSince(lastTickAt);
+  lastTickAt = Date.now();
+  const remaining = tickRemaining(props.timer.remainingSeconds, elapsed);
+  emit('update', { remainingSeconds: remaining });
+  if (remaining <= 0) stop(true);
 }
 
 function stop(completed = false) {
   isRunning.value = false;
   clearInterval(intervalId);
   intervalId = null;
+  lastTickAt = null;
   emit('save');
   if (completed) {
     try {
@@ -59,6 +60,7 @@ function toggle() {
     stop();
   } else {
     isRunning.value = true;
+    lastTickAt = Date.now();
     intervalId = setInterval(tick, 1000);
   }
 }
@@ -66,6 +68,26 @@ function toggle() {
 function handleReset() {
   if (isRunning.value) stop();
   emit('reset');
+}
+
+// Manual "time spent today" adjustment
+const showAdjust = ref(false);
+const adjustH = ref(0);
+const adjustM = ref(0);
+
+function openAdjust() {
+  const spent = props.timer.totalSeconds - props.timer.remainingSeconds;
+  adjustH.value = Math.floor(spent / 3600);
+  adjustM.value = Math.floor((spent % 3600) / 60);
+  showAdjust.value = true;
+}
+
+function saveAdjust() {
+  const spentSeconds = Math.max(0, Number(adjustH.value) || 0) * 3600 + Math.max(0, Number(adjustM.value) || 0) * 60;
+  const newRemaining = Math.min(props.timer.totalSeconds, Math.max(0, props.timer.totalSeconds - spentSeconds));
+  emit('update', { remainingSeconds: newRemaining });
+  emit('save');
+  showAdjust.value = false;
 }
 
 if (Notification.permission === 'default') Notification.requestPermission();
@@ -80,6 +102,12 @@ onUnmounted(() => {
     <div class="card-top">
       <span class="timer-name">{{ timer.name }}</span>
       <div class="actions">
+        <button class="icon-btn" title="Adjust time spent" @click="openAdjust">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
         <button class="icon-btn" title="Edit" @click="$emit('edit')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -113,6 +141,20 @@ onUnmounted(() => {
         <span class="time">{{ timeDisplay }}</span>
         <span v-if="isCompleted" class="done-tag">Done!</span>
         <span v-else-if="isRunning" class="running-tag">Running</span>
+      </div>
+    </div>
+
+    <div v-if="showAdjust" class="adjust-panel">
+      <span class="adjust-label">Time spent today</span>
+      <div class="adjust-row">
+        <input type="number" v-model.number="adjustH" min="0" max="23" />
+        <span>h</span>
+        <input type="number" v-model.number="adjustM" min="0" max="59" />
+        <span>m</span>
+      </div>
+      <div class="adjust-actions">
+        <button class="btn-ghost" @click="showAdjust = false">Cancel</button>
+        <button class="btn-main" @click="saveAdjust">Save</button>
       </div>
     </div>
 
@@ -247,4 +289,39 @@ onUnmounted(() => {
   transition: all 0.15s;
 }
 .btn-ghost:hover { color: var(--text); }
+
+.adjust-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+.adjust-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.adjust-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.adjust-row input {
+  width: 48px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 5px 6px;
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+}
+.adjust-row span { font-size: 11px; color: var(--muted); }
+.adjust-actions { display: flex; gap: 6px; justify-content: flex-end; }
 </style>
