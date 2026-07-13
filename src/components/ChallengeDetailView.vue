@@ -413,16 +413,17 @@ function handleComposerKeydown(e) {
   min-width: 64px;
   background: var(--accent);
   color: white;
-  padding: 9px 14px 16px;
+  padding: 9px 14px 8px;
   border-radius: 14px 14px 3px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .bubble-text { font-size: 13px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 
 .bubble-time {
-  position: absolute;
-  right: 13px;
-  bottom: 5px;
+  align-self: flex-end;
   font-size: 10px;
   color: rgba(255,255,255,.75);
 }
