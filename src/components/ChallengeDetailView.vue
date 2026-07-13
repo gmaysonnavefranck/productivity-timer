@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick, watch } from 'vue';
 import { useCountdown } from '../composables/useCountdown.js';
 
 const props = defineProps({ speedrun: Object });
@@ -49,7 +49,7 @@ function handleReset() {
 }
 
 const sortedNotes = computed(() =>
-  [...(props.speedrun.notesLog || [])].sort((a, b) => b.createdAt - a.createdAt)
+  [...(props.speedrun.notesLog || [])].sort((a, b) => a.createdAt - b.createdAt)
 );
 
 function formatTimestamp(ms) {
@@ -59,12 +59,28 @@ function formatTimestamp(ms) {
 }
 
 const draft = ref('');
+const messagesEl = ref(null);
+
+function scrollToBottom() {
+  nextTick(() => {
+    if (messagesEl.value) messagesEl.value.scrollTop = messagesEl.value.scrollHeight;
+  });
+}
+
+watch(() => props.speedrun.notesLog?.length, scrollToBottom, { immediate: true });
 
 function addNote() {
   const text = draft.value.trim();
   if (!text) return;
   emit('add-note', text);
   draft.value = '';
+}
+
+function handleComposerKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    addNote();
+  }
 }
 </script>
 
@@ -125,31 +141,33 @@ function addNote() {
       </div>
 
       <div class="notes-panel">
-        <p class="sec-title">Notes</p>
-        <div class="note-form">
-          <textarea
-            v-model="draft"
-            rows="4"
-            placeholder="What did you work on…"
-            @keydown.enter.meta="addNote"
-            @keydown.enter.ctrl="addNote"
-          />
-          <button class="btn-save" :disabled="!draft.trim()" @click="addNote">Add Note</button>
-        </div>
-
-        <div v-if="!sortedNotes.length" class="no-notes">No notes yet.</div>
-        <div v-else class="note-list">
-          <div v-for="note in sortedNotes" :key="note.id" class="note-entry">
-            <div class="note-entry-head">
-              <span class="note-time">{{ formatTimestamp(note.createdAt) }}</span>
+        <div ref="messagesEl" class="messages">
+          <div v-if="!sortedNotes.length" class="no-notes">No notes yet — jot down what you're working on as you go.</div>
+          <div v-for="note in sortedNotes" :key="note.id" class="bubble-row">
+            <div class="bubble">
               <button class="del-btn" title="Delete note" @click="$emit('delete-note', note.id)">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
                   <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
               </button>
+              <p class="bubble-text">{{ note.text }}</p>
+              <span class="bubble-time">{{ formatTimestamp(note.createdAt) }}</span>
             </div>
-            <p class="note-text">{{ note.text }}</p>
           </div>
+        </div>
+
+        <div class="composer">
+          <textarea
+            v-model="draft"
+            rows="1"
+            placeholder="What did you work on… (Enter to send, Shift+Enter for a new line)"
+            @keydown="handleComposerKeydown"
+          />
+          <button class="send-btn" title="Send" :disabled="!draft.trim()" @click="addNote">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M4 20l16-8L4 4v6l10 2-10 2v6z" fill="currentColor"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -264,80 +282,106 @@ function addNote() {
 .notes-panel {
   flex: 1;
   min-width: 0;
-  padding: 24px 28px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  background: var(--bg);
 }
 
-.sec-title {
-  font-size: 11px;
-  font-weight: 700;
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.no-notes {
+  margin: auto;
+  font-size: 12.5px;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
+  text-align: center;
+  max-width: 220px;
 }
 
-.note-form { display: flex; flex-direction: column; gap: 8px; }
-.note-form textarea {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  padding: 10px 12px;
-  font-size: 13px;
-  font-family: inherit;
-  outline: none;
-  resize: none;
-  transition: border-color 0.15s;
-}
-.note-form textarea:focus { border-color: var(--accent); }
+.bubble-row { display: flex; justify-content: flex-end; }
 
-.btn-save {
-  align-self: flex-end;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
+.bubble {
+  position: relative;
+  max-width: 70%;
   background: var(--accent);
   color: white;
-  font-size: 13px;
-  font-weight: 500;
-  transition: background 0.15s;
-}
-.btn-save:hover:not(:disabled) { background: var(--accent-hover); }
-.btn-save:disabled { opacity: 0.45; cursor: default; }
-
-.no-notes { font-size: 12px; color: var(--muted); }
-
-.note-list { display: flex; flex-direction: column; gap: 10px; }
-
-.note-entry {
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  padding: 9px 34px 16px 13px;
+  border-radius: 14px 14px 3px 14px;
 }
 
-.note-entry-head { display: flex; align-items: center; justify-content: space-between; }
-.note-time { font-size: 11px; color: var(--muted); font-weight: 600; }
+.bubble-text { font-size: 13px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+
+.bubble-time {
+  position: absolute;
+  right: 13px;
+  bottom: 5px;
+  font-size: 10px;
+  color: rgba(255,255,255,.75);
+}
 
 .del-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
   width: 18px;
   height: 18px;
   border-radius: 4px;
   background: transparent;
-  color: var(--muted);
+  color: rgba(255,255,255,.75);
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   transition: all 0.15s;
 }
-.note-entry:hover .del-btn { opacity: 1; }
-.del-btn:hover { background: rgba(239,68,68,.15); color: var(--red); }
+.bubble:hover .del-btn { opacity: 1; }
+.del-btn:hover { background: rgba(0,0,0,.2); color: white; }
 
-.note-text { font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.composer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 140px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  color: var(--text);
+  padding: 10px 16px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  transition: border-color 0.15s;
+}
+.composer textarea:focus { border-color: var(--accent); }
+
+.send-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.send-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.send-btn:disabled { opacity: 0.4; cursor: default; }
 </style>
