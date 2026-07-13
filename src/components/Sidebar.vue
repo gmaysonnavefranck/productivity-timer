@@ -13,6 +13,11 @@ const VIEWS = [
     label: 'Board',
     icon: 'M4 4h4v16H4zM10 4h4v10h-4zM16 4h4v7h-4z',
   },
+  {
+    id: 'speedrun',
+    label: 'Speedrun',
+    icon: 'M13 2L4 14h6l-1 8 9-12h-6z',
+  },
 ];
 </script>
 

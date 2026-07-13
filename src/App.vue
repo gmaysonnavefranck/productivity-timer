@@ -2,6 +2,7 @@
 import { reactive, onMounted, onUnmounted, ref, computed } from 'vue';
 import CalendarView from './components/CalendarView.vue';
 import KanbanView from './components/KanbanView.vue';
+import SpeedrunView from './components/SpeedrunView.vue';
 import Sidebar from './components/Sidebar.vue';
 
 const isLoaded = ref(false);
@@ -14,6 +15,7 @@ const data = reactive({
   days: {},
   projects: [],
   cards: [],
+  speedruns: [],
 });
 
 function todayStr() {
@@ -37,6 +39,7 @@ async function loadData() {
     data.lastDate = saved.lastDate || todayStr();
     data.projects = saved.projects || [];
     data.cards = saved.cards || [];
+    data.speedruns = saved.speedruns || [];
   }
 
   const today = todayStr();
@@ -83,6 +86,7 @@ async function saveData() {
     days: data.days,
     projects: data.projects,
     cards: data.cards,
+    speedruns: data.speedruns,
   })));
 }
 
@@ -289,6 +293,49 @@ function moveCard({ id, status, beforeCardId, afterCardId }) {
   saveData();
 }
 
+// Speedruns
+function addSpeedrun(speedrunData) {
+  data.speedruns.push({
+    id: uid(),
+    name: speedrunData.name,
+    totalSeconds: speedrunData.totalSeconds,
+    remainingSeconds: speedrunData.totalSeconds,
+    color: speedrunData.color,
+    notes: '',
+    status: 'active',
+  });
+  saveData();
+}
+
+function updateSpeedrun(id, changes) {
+  const s = data.speedruns.find((s) => s.id === id);
+  if (s) Object.assign(s, changes);
+}
+
+function resetSpeedrun(id) {
+  const s = data.speedruns.find((s) => s.id === id);
+  if (s) s.remainingSeconds = s.totalSeconds;
+  saveData();
+}
+
+function finishSpeedrun(id) {
+  const s = data.speedruns.find((s) => s.id === id);
+  if (s) s.status = 'finished';
+  saveData();
+}
+
+function deleteSpeedrun(id) {
+  const idx = data.speedruns.findIndex((s) => s.id === id);
+  if (idx !== -1) data.speedruns.splice(idx, 1);
+  saveData();
+}
+
+function editSpeedrunNotes(id, { name, notes }) {
+  const s = data.speedruns.find((s) => s.id === id);
+  if (s) { s.name = name; s.notes = notes; }
+  saveData();
+}
+
 // Midnight rollover
 let midnightTimer = null;
 function scheduleMidnight() {
@@ -381,6 +428,17 @@ onUnmounted(() => {
       @edit-card="editCard"
       @delete-card="deleteCard"
       @move-card="moveCard"
+    />
+    <SpeedrunView
+      v-else-if="activeView === 'speedrun'"
+      :speedruns="data.speedruns"
+      @add-speedrun="addSpeedrun"
+      @update-speedrun="updateSpeedrun"
+      @delete-speedrun="deleteSpeedrun"
+      @reset-speedrun="resetSpeedrun"
+      @finish-speedrun="finishSpeedrun"
+      @edit-notes="editSpeedrunNotes"
+      @save="saveData"
     />
   </template>
 </template>
