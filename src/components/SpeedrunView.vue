@@ -47,25 +47,25 @@ function formatDur(secs) {
 <template>
   <div class="speedrun-view">
     <header class="view-header">
-      <h1>Speedrun</h1>
+      <h1>Challenges</h1>
       <button class="btn-add" @click="showAddModal = true">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
           <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
         </svg>
-        New Speedrun
+        New Challenge
       </button>
     </header>
 
     <div class="content">
       <div v-if="!speedruns.length" class="empty-state">
-        <p>No speedruns yet</p>
+        <p>No challenges yet</p>
         <p class="sub">Set a time budget for a goal and see how far you get.</p>
       </div>
 
       <template v-else>
         <section class="section">
           <p class="sec-title">Active</p>
-          <div v-if="!active.length" class="no-items">No active speedruns.</div>
+          <div v-if="!active.length" class="no-items">No active challenges.</div>
           <div v-else class="speedrun-grid">
             <SpeedrunCard
               v-for="s in active"

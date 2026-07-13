@@ -51,7 +51,7 @@ function finishNow(auto = false) {
   if (auto) {
     try {
       if (Notification.permission === 'granted') {
-        new Notification(`${props.speedrun.name} finished!`, { body: 'Speedrun budget reached.' });
+        new Notification(`${props.speedrun.name} finished!`, { body: 'Challenge budget reached.' });
       }
     } catch (_) {}
   }

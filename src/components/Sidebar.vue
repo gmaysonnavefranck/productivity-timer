@@ -15,7 +15,7 @@ const VIEWS = [
   },
   {
     id: 'speedrun',
-    label: 'Speedrun',
+    label: 'Challenges',
     icon: 'M13 2L4 14h6l-1 8 9-12h-6z',
   },
 ];

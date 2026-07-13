@@ -27,7 +27,7 @@ onMounted(() => document.getElementById('sm-name')?.focus());
 <template>
   <div class="overlay" @click.self="$emit('close')">
     <div class="modal">
-      <h2>New Speedrun</h2>
+      <h2>New Challenge</h2>
 
       <div class="field">
         <label>Name</label>
@@ -70,7 +70,7 @@ onMounted(() => document.getElementById('sm-name')?.focus());
 
       <div class="actions">
         <button class="btn-cancel" @click="$emit('close')">Cancel</button>
-        <button class="btn-save" :disabled="!isValid" @click="submit">Start Speedrun</button>
+        <button class="btn-save" :disabled="!isValid" @click="submit">Start Challenge</button>
       </div>
     </div>
   </div>
