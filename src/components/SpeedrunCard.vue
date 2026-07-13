@@ -8,9 +8,9 @@ const emit = defineEmits(['update', 'delete', 'reset', 'finish', 'save', 'open']
 const RADIUS = 50;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-const { isRunning, toggle, stopInterval, finishNow } = useCountdown({
-  getRemaining: () => props.speedrun.remainingSeconds,
-  onTick: (remaining) => emit('update', { remainingSeconds: remaining }),
+const { isRunning, effectiveRemaining, toggle, pause, finishNow } = useCountdown({
+  getSpeedrun: () => props.speedrun,
+  onUpdate: (changes) => emit('update', changes),
   onFinish: (auto) => {
     emit('finish');
     if (auto) {
@@ -27,13 +27,13 @@ const { isRunning, toggle, stopInterval, finishNow } = useCountdown({
 const progress = computed(() =>
   props.speedrun.totalSeconds === 0
     ? 1
-    : 1 - props.speedrun.remainingSeconds / props.speedrun.totalSeconds
+    : 1 - effectiveRemaining.value / props.speedrun.totalSeconds
 );
 
 const dashOffset = computed(() => CIRCUMFERENCE * (1 - progress.value));
 
 const timeDisplay = computed(() => {
-  const s = props.speedrun.remainingSeconds;
+  const s = effectiveRemaining.value;
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
@@ -42,7 +42,8 @@ const timeDisplay = computed(() => {
 });
 
 function handleReset() {
-  if (isRunning.value) stopInterval();
+  if (isRunning.value) pause();
+  emit('update', { startedAt: null });
   emit('reset');
 }
 

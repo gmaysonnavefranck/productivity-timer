@@ -10,9 +10,9 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 const isActive = computed(() => props.speedrun.status === 'active');
 
-const { isRunning, toggle, stopInterval, finishNow } = useCountdown({
-  getRemaining: () => props.speedrun.remainingSeconds,
-  onTick: (remaining) => emit('update', { remainingSeconds: remaining }),
+const { isRunning, effectiveRemaining, toggle, pause, finishNow } = useCountdown({
+  getSpeedrun: () => props.speedrun,
+  onUpdate: (changes) => emit('update', changes),
   onFinish: (auto) => {
     emit('finish');
     if (auto) {
@@ -29,13 +29,13 @@ const { isRunning, toggle, stopInterval, finishNow } = useCountdown({
 const progress = computed(() =>
   props.speedrun.totalSeconds === 0
     ? 1
-    : 1 - props.speedrun.remainingSeconds / props.speedrun.totalSeconds
+    : 1 - effectiveRemaining.value / props.speedrun.totalSeconds
 );
 
 const dashOffset = computed(() => CIRCUMFERENCE * (1 - progress.value));
 
 const timeDisplay = computed(() => {
-  const s = props.speedrun.remainingSeconds;
+  const s = effectiveRemaining.value;
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sec = s % 60;
@@ -44,8 +44,23 @@ const timeDisplay = computed(() => {
 });
 
 function handleReset() {
-  if (isRunning.value) stopInterval();
+  if (isRunning.value) pause();
+  emit('update', { startedAt: null });
   emit('reset');
+}
+
+const editingObjectives = ref(false);
+const objectivesDraft = ref('');
+
+function startEditObjectives() {
+  objectivesDraft.value = props.speedrun.description || '';
+  editingObjectives.value = true;
+}
+
+function saveObjectives() {
+  editingObjectives.value = false;
+  emit('update', { description: objectivesDraft.value.trim() });
+  emit('save');
 }
 
 const sortedNotes = computed(() =>
@@ -137,6 +152,29 @@ function handleComposerKeydown(e) {
           </button>
           <button class="btn-ghost" @click="handleReset">Reset</button>
           <button class="btn-ghost" @click="finishNow()">Finish now</button>
+        </div>
+
+        <div class="objectives">
+          <div class="objectives-head">
+            <p class="sec-title">Objectives</p>
+            <button class="icon-btn-sm" title="Edit objectives" @click="startEditObjectives">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <textarea
+            v-if="editingObjectives"
+            v-model="objectivesDraft"
+            rows="5"
+            placeholder="What are you trying to achieve…"
+            autofocus
+            @blur="saveObjectives"
+            @keydown.escape="editingObjectives = false"
+          />
+          <p v-else-if="speedrun.description" class="objectives-text" @click="startEditObjectives">{{ speedrun.description }}</p>
+          <p v-else class="objectives-empty" @click="startEditObjectives">No objectives set — click to add.</p>
         </div>
       </div>
 
@@ -236,6 +274,7 @@ function handleComposerKeydown(e) {
   flex-direction: column;
   align-items: center;
   gap: 22px;
+  overflow-y: auto;
 }
 
 .ring-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
@@ -279,6 +318,68 @@ function handleComposerKeydown(e) {
 }
 .btn-ghost:hover { color: var(--text); }
 
+.objectives {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.objectives-head { display: flex; align-items: center; justify-content: space-between; }
+
+.sec-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.icon-btn-sm {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.icon-btn-sm:hover { background: var(--surface-2); color: var(--text); }
+
+.objectives textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 9px 11px;
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.objectives textarea:focus { border-color: var(--accent); }
+
+.objectives-text {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: pointer;
+}
+
+.objectives-empty {
+  font-size: 12.5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
 .notes-panel {
   flex: 1;
   min-width: 0;
@@ -308,10 +409,11 @@ function handleComposerKeydown(e) {
 
 .bubble {
   position: relative;
-  max-width: 70%;
+  max-width: 78%;
+  min-width: 64px;
   background: var(--accent);
   color: white;
-  padding: 9px 34px 16px 13px;
+  padding: 9px 14px 16px;
   border-radius: 14px 14px 3px 14px;
 }
 

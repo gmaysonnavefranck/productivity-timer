@@ -301,8 +301,10 @@ function addSpeedrun(speedrunData) {
     totalSeconds: speedrunData.totalSeconds,
     remainingSeconds: speedrunData.totalSeconds,
     color: speedrunData.color,
+    description: speedrunData.description || '',
     notesLog: [],
     status: 'active',
+    startedAt: null,
   });
   saveData();
 }
@@ -314,7 +316,7 @@ function updateSpeedrun(id, changes) {
 
 function resetSpeedrun(id) {
   const s = data.speedruns.find((s) => s.id === id);
-  if (s) s.remainingSeconds = s.totalSeconds;
+  if (s) { s.remainingSeconds = s.totalSeconds; s.startedAt = null; }
   saveData();
 }
 

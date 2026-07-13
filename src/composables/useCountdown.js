@@ -1,44 +1,66 @@
-import { ref, onUnmounted } from 'vue';
-import { tickRemaining, elapsedSince } from '../timerMath.mjs';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
-export function useCountdown({ getRemaining, onTick, onFinish, onSave }) {
-  const isRunning = ref(false);
+export function useCountdown({ getSpeedrun, onUpdate, onFinish, onSave }) {
+  const now = ref(Date.now());
   let intervalId = null;
-  let lastTickAt = null;
+
+  const isRunning = computed(() => getSpeedrun().startedAt != null);
+
+  const effectiveRemaining = computed(() => {
+    const s = getSpeedrun();
+    if (s.startedAt == null) return s.remainingSeconds;
+    const elapsed = Math.floor((now.value - s.startedAt) / 1000);
+    return Math.max(0, s.remainingSeconds - elapsed);
+  });
+
+  function runInterval() {
+    if (intervalId) return;
+    intervalId = setInterval(tick, 1000);
+  }
 
   function stopInterval() {
-    isRunning.value = false;
     clearInterval(intervalId);
     intervalId = null;
-    lastTickAt = null;
   }
 
   function tick() {
-    const elapsed = elapsedSince(lastTickAt);
-    lastTickAt = Date.now();
-    const remaining = tickRemaining(getRemaining(), elapsed);
-    onTick(remaining);
-    if (remaining <= 0) finishNow(true);
+    now.value = Date.now();
+    if (effectiveRemaining.value <= 0) finishNow(true);
+  }
+
+  function start() {
+    if (isRunning.value) return;
+    now.value = Date.now();
+    onUpdate({ startedAt: now.value });
+    onSave();
+    runInterval();
+  }
+
+  function pause() {
+    if (!isRunning.value) return;
+    onUpdate({ remainingSeconds: effectiveRemaining.value, startedAt: null });
+    onSave();
+    stopInterval();
+  }
+
+  function toggle() {
+    if (isRunning.value) pause();
+    else start();
   }
 
   function finishNow(auto = false) {
-    stopInterval();
+    const wasRunning = isRunning.value;
+    if (wasRunning) pause();
     onFinish(auto);
     onSave();
   }
 
-  function toggle() {
-    if (isRunning.value) {
-      stopInterval();
-      onSave();
-    } else {
-      isRunning.value = true;
-      lastTickAt = Date.now();
-      intervalId = setInterval(tick, 1000);
-    }
-  }
+  onMounted(() => {
+    now.value = Date.now();
+    if (isRunning.value) runInterval();
+  });
 
   onUnmounted(stopInterval);
 
-  return { isRunning, toggle, stopInterval, finishNow };
+  return { isRunning, effectiveRemaining, toggle, pause, finishNow };
 }

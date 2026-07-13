@@ -9,6 +9,7 @@ const name = ref('');
 const hours = ref(20);
 const minutes = ref(0);
 const color = ref(COLORS[0]);
+const description = ref('');
 
 const isValid = computed(() => name.value.trim().length > 0 && (Number(hours.value) > 0 || Number(minutes.value) > 0));
 
@@ -18,6 +19,7 @@ function submit() {
     name: name.value.trim(),
     totalSeconds: Number(hours.value) * 3600 + Number(minutes.value) * 60,
     color: color.value,
+    description: description.value.trim(),
   });
 }
 
@@ -68,6 +70,11 @@ onMounted(() => document.getElementById('sm-name')?.focus());
         </div>
       </div>
 
+      <div class="field">
+        <label>Objectives (optional)</label>
+        <textarea v-model="description" rows="3" placeholder="What are you trying to achieve…" />
+      </div>
+
       <div class="actions">
         <button class="btn-cancel" @click="$emit('close')">Cancel</button>
         <button class="btn-save" :disabled="!isValid" @click="submit">Start Challenge</button>
@@ -111,7 +118,7 @@ onMounted(() => document.getElementById('sm-name')?.focus());
   letter-spacing: 0.6px;
 }
 
-input {
+input, textarea {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -121,8 +128,10 @@ input {
   outline: none;
   transition: border-color 0.15s;
   width: 100%;
+  font-family: inherit;
+  resize: none;
 }
-input:focus { border-color: var(--accent); }
+input:focus, textarea:focus { border-color: var(--accent); }
 
 .row { display: flex; gap: 8px; }
 
