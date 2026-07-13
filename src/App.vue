@@ -301,7 +301,7 @@ function addSpeedrun(speedrunData) {
     totalSeconds: speedrunData.totalSeconds,
     remainingSeconds: speedrunData.totalSeconds,
     color: speedrunData.color,
-    notes: '',
+    notesLog: [],
     status: 'active',
   });
   saveData();
@@ -330,9 +330,18 @@ function deleteSpeedrun(id) {
   saveData();
 }
 
-function editSpeedrunNotes(id, { name, notes }) {
+function addSpeedrunNote(id, text) {
   const s = data.speedruns.find((s) => s.id === id);
-  if (s) { s.name = name; s.notes = notes; }
+  if (s) s.notesLog.push({ id: uid(), text, createdAt: Date.now() });
+  saveData();
+}
+
+function deleteSpeedrunNote(id, noteId) {
+  const s = data.speedruns.find((s) => s.id === id);
+  if (s) {
+    const idx = s.notesLog.findIndex((n) => n.id === noteId);
+    if (idx !== -1) s.notesLog.splice(idx, 1);
+  }
   saveData();
 }
 
@@ -437,7 +446,8 @@ onUnmounted(() => {
       @delete-speedrun="deleteSpeedrun"
       @reset-speedrun="resetSpeedrun"
       @finish-speedrun="finishSpeedrun"
-      @edit-notes="editSpeedrunNotes"
+      @add-note="addSpeedrunNote"
+      @delete-note="deleteSpeedrunNote"
       @save="saveData"
     />
   </template>

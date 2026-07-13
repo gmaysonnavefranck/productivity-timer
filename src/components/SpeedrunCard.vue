@@ -1,16 +1,28 @@
 <script setup>
-import { ref, computed, onUnmounted } from 'vue';
-import { tickRemaining, elapsedSince } from '../timerMath.mjs';
+import { computed } from 'vue';
+import { useCountdown } from '../composables/useCountdown.js';
 
 const props = defineProps({ speedrun: Object });
 const emit = defineEmits(['update', 'delete', 'reset', 'finish', 'save', 'open']);
 
-const isRunning = ref(false);
-let intervalId = null;
-let lastTickAt = null;
-
 const RADIUS = 50;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+
+const { isRunning, toggle, stopInterval, finishNow } = useCountdown({
+  getRemaining: () => props.speedrun.remainingSeconds,
+  onTick: (remaining) => emit('update', { remainingSeconds: remaining }),
+  onFinish: (auto) => {
+    emit('finish');
+    if (auto) {
+      try {
+        if (Notification.permission === 'granted') {
+          new Notification(`${props.speedrun.name} finished!`, { body: 'Challenge budget reached.' });
+        }
+      } catch (_) {}
+    }
+  },
+  onSave: () => emit('save'),
+});
 
 const progress = computed(() =>
   props.speedrun.totalSeconds === 0
@@ -29,55 +41,12 @@ const timeDisplay = computed(() => {
   return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
 });
 
-function stopInterval() {
-  isRunning.value = false;
-  clearInterval(intervalId);
-  intervalId = null;
-  lastTickAt = null;
-}
-
-function tick() {
-  const elapsed = elapsedSince(lastTickAt);
-  lastTickAt = Date.now();
-  const remaining = tickRemaining(props.speedrun.remainingSeconds, elapsed);
-  emit('update', { remainingSeconds: remaining });
-  if (remaining <= 0) finishNow(true);
-}
-
-function finishNow(auto = false) {
-  stopInterval();
-  emit('finish');
-  emit('save');
-  if (auto) {
-    try {
-      if (Notification.permission === 'granted') {
-        new Notification(`${props.speedrun.name} finished!`, { body: 'Challenge budget reached.' });
-      }
-    } catch (_) {}
-  }
-}
-
-function toggle() {
-  if (isRunning.value) {
-    stopInterval();
-    emit('save');
-  } else {
-    isRunning.value = true;
-    lastTickAt = Date.now();
-    intervalId = setInterval(tick, 1000);
-  }
-}
-
 function handleReset() {
   if (isRunning.value) stopInterval();
   emit('reset');
 }
 
 if (Notification.permission === 'default') Notification.requestPermission();
-
-onUnmounted(() => {
-  if (intervalId) clearInterval(intervalId);
-});
 </script>
 
 <template>
@@ -85,7 +54,7 @@ onUnmounted(() => {
     <div class="card-top">
       <span class="run-name">{{ speedrun.name }}</span>
       <div class="actions">
-        <svg v-if="speedrun.notes" class="notes-icon" title="Has notes" width="12" height="12" viewBox="0 0 24 24" fill="none">
+        <svg v-if="speedrun.notesLog?.length" class="notes-icon" title="Has notes" width="12" height="12" viewBox="0 0 24 24" fill="none">
           <path d="M4 4h16v12H8l-4 4V4z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
         </svg>
         <button class="icon-btn" title="Finish now" @click.stop="finishNow()">

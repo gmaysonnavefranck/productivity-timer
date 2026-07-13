@@ -2,15 +2,18 @@
 import { ref, computed } from 'vue';
 import SpeedrunCard from './SpeedrunCard.vue';
 import AddSpeedrunModal from './AddSpeedrunModal.vue';
-import CardDetailModal from './CardDetailModal.vue';
+import ChallengeDetailView from './ChallengeDetailView.vue';
 
 const props = defineProps({ speedruns: Array });
 const emit = defineEmits([
   'add-speedrun', 'update-speedrun', 'delete-speedrun',
-  'reset-speedrun', 'finish-speedrun', 'edit-notes', 'save',
+  'reset-speedrun', 'finish-speedrun', 'add-note', 'delete-note', 'save',
 ]);
 
-const active = computed(() => props.speedruns.filter((s) => s.status === 'active'));
+const openId = ref(null);
+const openSpeedrun = computed(() => props.speedruns.find((s) => s.id === openId.value) || null);
+
+const active = computed(() => props.speedruns.filter((s) => s.status === 'active' && s.id !== openId.value));
 const finished = computed(() => props.speedruns.filter((s) => s.status === 'finished'));
 
 const showAddModal = ref(false);
@@ -20,19 +23,9 @@ function handleAdd(data) {
   showAddModal.value = false;
 }
 
-// Notes modal (shared for active + finished, maps name/notes <-> title/description)
-const notesTarget = ref(null);
-const notesCardShape = computed(() => notesTarget.value
-  ? { title: notesTarget.value.name, description: notesTarget.value.notes }
-  : null);
-
-function openNotes(speedrun) {
-  notesTarget.value = speedrun;
-}
-
-function saveNotes({ title, description }) {
-  emit('edit-notes', notesTarget.value.id, { name: title, notes: description });
-  notesTarget.value = null;
+function handleDelete(id) {
+  emit('delete-speedrun', id);
+  if (openId.value === id) openId.value = null;
 }
 
 function formatDur(secs) {
@@ -45,7 +38,20 @@ function formatDur(secs) {
 </script>
 
 <template>
-  <div class="speedrun-view">
+  <ChallengeDetailView
+    v-if="openSpeedrun"
+    :speedrun="openSpeedrun"
+    @update="(changes) => emit('update-speedrun', openSpeedrun.id, changes)"
+    @delete="handleDelete(openSpeedrun.id)"
+    @reset="emit('reset-speedrun', openSpeedrun.id)"
+    @finish="emit('finish-speedrun', openSpeedrun.id)"
+    @add-note="(text) => emit('add-note', openSpeedrun.id, text)"
+    @delete-note="(noteId) => emit('delete-note', openSpeedrun.id, noteId)"
+    @save="emit('save')"
+    @back="openId = null"
+  />
+
+  <div v-else class="speedrun-view">
     <header class="view-header">
       <h1>Challenges</h1>
       <button class="btn-add" @click="showAddModal = true">
@@ -72,11 +78,11 @@ function formatDur(secs) {
               :key="s.id"
               :speedrun="s"
               @update="(changes) => emit('update-speedrun', s.id, changes)"
-              @delete="emit('delete-speedrun', s.id)"
+              @delete="handleDelete(s.id)"
               @reset="emit('reset-speedrun', s.id)"
               @finish="emit('finish-speedrun', s.id)"
               @save="emit('save')"
-              @open="openNotes(s)"
+              @open="openId = s.id"
             />
           </div>
         </section>
@@ -84,7 +90,7 @@ function formatDur(secs) {
         <section v-if="finished.length" class="section">
           <p class="sec-title">Finished</p>
           <div class="finished-list">
-            <div v-for="s in finished" :key="s.id" class="finished-row" @click="openNotes(s)">
+            <div v-for="s in finished" :key="s.id" class="finished-row" @click="openId = s.id">
               <span class="f-dot" :style="{ background: s.color }" />
               <div class="f-info">
                 <span class="f-name">{{ s.name }}</span>
@@ -92,8 +98,8 @@ function formatDur(secs) {
                   {{ formatDur(s.totalSeconds - s.remainingSeconds) }} / {{ formatDur(s.totalSeconds) }}
                 </span>
               </div>
-              <p v-if="s.notes" class="f-notes">{{ s.notes }}</p>
-              <button class="del-btn" title="Delete" @click.stop="emit('delete-speedrun', s.id)">
+              <span v-if="s.notesLog?.length" class="f-note-count">{{ s.notesLog.length }} note{{ s.notesLog.length !== 1 ? 's' : '' }}</span>
+              <button class="del-btn" title="Delete" @click.stop="handleDelete(s.id)">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
                   <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
@@ -105,12 +111,6 @@ function formatDur(secs) {
     </div>
 
     <AddSpeedrunModal v-if="showAddModal" @save="handleAdd" @close="showAddModal = false" />
-    <CardDetailModal
-      v-if="notesCardShape"
-      :card="notesCardShape"
-      @save="saveNotes"
-      @close="notesTarget = null"
-    />
   </div>
 </template>
 
@@ -207,14 +207,10 @@ function formatDur(secs) {
 .f-name { font-size: 12.5px; font-weight: 500; }
 .f-time { font-size: 11px; color: var(--muted); }
 
-.f-notes {
-  flex: 1;
-  font-size: 11.5px;
+.f-note-count {
+  font-size: 11px;
   color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
+  flex: 1;
 }
 
 .del-btn {
