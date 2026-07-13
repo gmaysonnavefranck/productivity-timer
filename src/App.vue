@@ -332,13 +332,16 @@ function deleteSpeedrun(id) {
 
 function addSpeedrunNote(id, text) {
   const s = data.speedruns.find((s) => s.id === id);
-  if (s) s.notesLog.push({ id: uid(), text, createdAt: Date.now() });
+  if (s) {
+    if (!s.notesLog) s.notesLog = [];
+    s.notesLog.push({ id: uid(), text, createdAt: Date.now() });
+  }
   saveData();
 }
 
 function deleteSpeedrunNote(id, noteId) {
   const s = data.speedruns.find((s) => s.id === id);
-  if (s) {
+  if (s?.notesLog) {
     const idx = s.notesLog.findIndex((n) => n.id === noteId);
     if (idx !== -1) s.notesLog.splice(idx, 1);
   }

@@ -24,6 +24,8 @@ function handleAdd(data) {
 }
 
 function handleDelete(id) {
+  const s = props.speedruns.find((s) => s.id === id);
+  if (!confirm(`Delete "${s?.name}"? This can't be undone.`)) return;
   emit('delete-speedrun', id);
   if (openId.value === id) openId.value = null;
 }
