@@ -4,16 +4,19 @@ import TimerCard from './TimerCard.vue';
 import AddTimerModal from './AddTimerModal.vue';
 import HabitModal from './HabitModal.vue';
 import TaskModal from './TaskModal.vue';
+import { matchesRule } from '../recurrence.js';
 
 const props = defineProps({
   days: Object,
   timers: Array,
   habits: Array,
+  recurringTasks: Array,
   streak: Number,
   today: String,
 });
 const emit = defineEmits([
   'add-task', 'toggle-task', 'delete-task',
+  'add-recurring-task', 'delete-recurring-task', 'toggle-recurring-task',
   'add-timer', 'edit-timer', 'update-timer', 'delete-timer', 'reset-timer', 'save',
   'add-habit', 'edit-habit', 'delete-habit', 'toggle-habit', 'update-note', 'change-date',
 ]);
@@ -254,7 +257,32 @@ function handleTaskSave({ date, text, reminderTime }) {
   showTaskModal.value = false;
 }
 
+function handleRecurringSave(taskData) {
+  emit('add-recurring-task', taskData);
+  showTaskModal.value = false;
+}
+
 function closeTaskModal() { showTaskModal.value = false; }
+
+// Recurring task occurrences for the selected day
+const recurringForSelected = computed(() => {
+  if (!selectedDate.value) return [];
+  const results = props.days[selectedDate.value]?.recurringTaskResults || [];
+  return (props.recurringTasks || [])
+    .filter((rt) => matchesRule(rt.rule, selectedDate.value))
+    .map((rt) => ({
+      id: rt.id,
+      text: rt.text,
+      reminderTime: rt.reminderTime,
+      done: results.find((r) => r.id === rt.id)?.done || false,
+      recurring: true,
+    }));
+});
+
+const allTasksForSelected = computed(() => [
+  ...recurringForSelected.value,
+  ...(selectedDay.value?.tasks || []).map((t) => ({ ...t, recurring: false })),
+]);
 </script>
 
 <template>
@@ -372,14 +400,16 @@ function closeTaskModal() { showTaskModal.value = false; }
       <div class="section tasks-section">
         <p class="sec-title">Tasks & Reminders</p>
 
-        <div v-if="!selectedDay?.tasks?.length" class="no-tasks">No tasks for this day</div>
+        <div v-if="!allTasksForSelected.length" class="no-tasks">No tasks for this day</div>
 
         <div v-else class="task-list">
-          <div v-for="task in selectedDay.tasks" :key="task.id" class="task">
+          <div v-for="task in allTasksForSelected" :key="(task.recurring ? 'r-' : 'o-') + task.id" class="task">
             <button
               class="check"
               :class="{ done: task.done }"
-              @click="emit('toggle-task', selectedDate, task.id)"
+              @click="task.recurring
+                ? emit('toggle-recurring-task', selectedDate, task.id)
+                : emit('toggle-task', selectedDate, task.id)"
             >
               <svg v-if="task.done" width="10" height="10" viewBox="0 0 24 24" fill="none">
                 <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
@@ -395,7 +425,11 @@ function closeTaskModal() { showTaskModal.value = false; }
                 {{ task.reminderTime }}
               </span>
             </div>
+            <svg v-if="task.recurring" class="repeat-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" title="Recurring — edit or remove from Add Task">
+              <path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
             <button
+              v-else
               class="del-btn"
               @click="emit('delete-task', selectedDate, task.id)"
             >
@@ -577,7 +611,10 @@ function closeTaskModal() { showTaskModal.value = false; }
   <TaskModal
     v-if="showTaskModal"
     :today="today"
+    :recurring-tasks="recurringTasks"
     @save="handleTaskSave"
+    @save-recurring="handleRecurringSave"
+    @delete-recurring="emit('delete-recurring-task', $event)"
     @close="closeTaskModal"
   />
 </template>
@@ -928,6 +965,8 @@ function closeTaskModal() { showTaskModal.value = false; }
 }
 .task:hover .del-btn { opacity: 1; }
 .del-btn:hover { background: rgba(239,68,68,.15); color: var(--red); }
+
+.repeat-icon { color: var(--muted); flex-shrink: 0; }
 
 /* Weekly stats */
 .weekly-stats {

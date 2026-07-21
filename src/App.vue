@@ -4,6 +4,7 @@ import CalendarView from './components/CalendarView.vue';
 import KanbanView from './components/KanbanView.vue';
 import SpeedrunView from './components/SpeedrunView.vue';
 import Sidebar from './components/Sidebar.vue';
+import { matchesRule } from './recurrence.js';
 
 const isLoaded = ref(false);
 const activeView = ref('timers');
@@ -12,6 +13,7 @@ const data = reactive({
   lastDate: todayStr(),
   timers: [],
   habits: [],
+  recurringTasks: [],
   days: {},
   projects: [],
   cards: [],
@@ -35,6 +37,7 @@ async function loadData() {
   if (saved) {
     data.timers = saved.timers || [];
     data.habits = saved.habits || [];
+    data.recurringTasks = saved.recurringTasks || [];
     data.days = saved.days || {};
     data.lastDate = saved.lastDate || todayStr();
     data.projects = saved.projects || [];
@@ -83,6 +86,7 @@ async function saveData() {
     lastDate: data.lastDate,
     timers: data.timers,
     habits: data.habits,
+    recurringTasks: data.recurringTasks,
     days: data.days,
     projects: data.projects,
     cards: data.cards,
@@ -227,6 +231,32 @@ function deleteTask(dateStr, taskId) {
   if (!day) return;
   const idx = day.tasks.findIndex((t) => t.id === taskId);
   if (idx !== -1) day.tasks.splice(idx, 1);
+  saveData();
+}
+
+// Recurring tasks
+function addRecurringTask(taskData) {
+  data.recurringTasks.push({
+    id: uid(),
+    text: taskData.text,
+    reminderTime: taskData.reminderTime || null,
+    rule: taskData.rule,
+  });
+  saveData();
+}
+
+function deleteRecurringTask(id) {
+  const idx = data.recurringTasks.findIndex((r) => r.id === id);
+  if (idx !== -1) data.recurringTasks.splice(idx, 1);
+  saveData();
+}
+
+function toggleRecurringTask(dateStr, recurringId) {
+  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '' };
+  if (!data.days[dateStr].recurringTaskResults) data.days[dateStr].recurringTaskResults = [];
+  const existing = data.days[dateStr].recurringTaskResults.find((r) => r.id === recurringId);
+  if (existing) existing.done = !existing.done;
+  else data.days[dateStr].recurringTaskResults.push({ id: recurringId, done: true });
   saveData();
 }
 
@@ -385,6 +415,17 @@ function checkReminders() {
     }
   });
 
+  const recurringResults = data.days[data.lastDate]?.recurringTaskResults || [];
+  data.recurringTasks.forEach((rt) => {
+    if (rt.reminderTime !== timeStr) return;
+    if (!matchesRule(rt.rule, data.lastDate)) return;
+    const done = recurringResults.find((r) => r.id === rt.id)?.done;
+    const key = `r:${data.lastDate}:${rt.id}`;
+    if (!done && !remindedIds.has(key)) {
+      remindedIds.add(key);
+      try { if (Notification.permission === 'granted') new Notification('Reminder', { body: rt.text }); } catch (_) {}
+    }
+  });
 }
 
 onMounted(() => {
@@ -413,11 +454,15 @@ onUnmounted(() => {
       :days="data.days"
       :timers="data.timers"
       :habits="data.habits"
+      :recurring-tasks="data.recurringTasks"
       :streak="streak"
       :today="data.lastDate"
       @add-task="addTask"
       @toggle-task="toggleTask"
       @delete-task="deleteTask"
+      @add-recurring-task="addRecurringTask"
+      @delete-recurring-task="deleteRecurringTask"
+      @toggle-recurring-task="toggleRecurringTask"
       @add-timer="addTimer"
       @edit-timer="editTimer"
       @update-timer="updateTimer"
