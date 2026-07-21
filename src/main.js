@@ -15,8 +15,24 @@ let mainWindow;
 let tray;
 let isQuitting = false;
 
+// Save into OneDrive when available so the data file gets backed up/synced.
+// One-time copy from the old local path on first run after this change.
+function resolveDataPath() {
+  const legacyPath = path.join(app.getPath("userData"), "productivity-data.json");
+  const oneDrive = process.env.OneDrive || process.env.OneDriveConsumer;
+  if (!oneDrive) return legacyPath;
+
+  const dir = path.join(oneDrive, "productivity-timer");
+  const target = path.join(dir, "productivity-data.json");
+  fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(target) && fs.existsSync(legacyPath)) {
+    fs.copyFileSync(legacyPath, target);
+  }
+  return target;
+}
+
 const createWindow = () => {
-  dataPath = path.join(app.getPath("userData"), "productivity-data.json");
+  dataPath = resolveDataPath();
 
   mainWindow = new BrowserWindow({
     width: 1190,
