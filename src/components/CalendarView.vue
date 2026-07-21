@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import TimerCard from './TimerCard.vue';
 import AddTimerModal from './AddTimerModal.vue';
 import HabitModal from './HabitModal.vue';
+import TaskModal from './TaskModal.vue';
 
 const props = defineProps({
   days: Object,
@@ -240,24 +241,20 @@ function formatDur(secs) {
 }
 
 // Task form
-const newText = ref('');
-const newTime = ref('');
+const showTaskModal = ref(false);
 
 watch(selectedDate, () => {
-  newText.value = '';
-  newTime.value = '';
   noteText.value = props.days[selectedDate.value]?.note || '';
 });
 
-function addTask() {
-  if (!newText.value.trim()) return;
-  emit('add-task', selectedDate.value, {
-    text: newText.value.trim(),
-    reminderTime: newTime.value || null,
-  });
-  newText.value = '';
-  newTime.value = '';
+function openAddTask() { showTaskModal.value = true; }
+
+function handleTaskSave({ date, text, reminderTime }) {
+  emit('add-task', date, { text, reminderTime });
+  showTaskModal.value = false;
 }
+
+function closeTaskModal() { showTaskModal.value = false; }
 </script>
 
 <template>
@@ -270,20 +267,28 @@ function addTask() {
         </svg>
         FocusTimer
       </div>
-      <div v-if="streak > 0" class="streak-badge">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 2c0 4-4 6-4 10a4 4 0 008 0c0-4-4-6-4-10zm-1 13a1 1 0 002 0 1 1 0 01-2 0z"/>
-        </svg>
-        {{ streak }} day{{ streak !== 1 ? 's' : '' }}
-      </div>
-      <div class="dev-date">
-        <span class="dev-label">Test date</span>
-        <input
-          type="date"
-          :value="today"
-          class="dev-input"
-          @change="emit('change-date', $event.target.value)"
-        />
+      <div class="header-right">
+        <div v-if="streak > 0" class="streak-badge">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2c0 4-4 6-4 10a4 4 0 008 0c0-4-4-6-4-10zm-1 13a1 1 0 002 0 1 1 0 01-2 0z"/>
+          </svg>
+          {{ streak }} day{{ streak !== 1 ? 's' : '' }}
+        </div>
+        <button class="btn-add-sm" @click="openAddTask">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+          Add Task
+        </button>
+        <div class="dev-date">
+          <span class="dev-label">Test date</span>
+          <input
+            type="date"
+            :value="today"
+            class="dev-input"
+            @change="emit('change-date', $event.target.value)"
+          />
+        </div>
       </div>
     </header>
 
@@ -360,6 +365,45 @@ function addTask() {
             </svg>
             {{ weeklyStats.habitDone }}/{{ weeklyStats.habitTotal }} habits
           </span>
+        </div>
+      </div>
+
+      <!-- Tasks -->
+      <div class="section tasks-section">
+        <p class="sec-title">Tasks & Reminders</p>
+
+        <div v-if="!selectedDay?.tasks?.length" class="no-tasks">No tasks for this day</div>
+
+        <div v-else class="task-list">
+          <div v-for="task in selectedDay.tasks" :key="task.id" class="task">
+            <button
+              class="check"
+              :class="{ done: task.done }"
+              @click="emit('toggle-task', selectedDate, task.id)"
+            >
+              <svg v-if="task.done" width="10" height="10" viewBox="0 0 24 24" fill="none">
+                <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <div class="task-body">
+              <span :class="['task-text', { done: task.done }]">{{ task.text }}</span>
+              <span v-if="task.reminderTime" class="reminder">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                  <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                {{ task.reminderTime }}
+              </span>
+            </div>
+            <button
+              class="del-btn"
+              @click="emit('delete-task', selectedDate, task.id)"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -511,63 +555,6 @@ function addTask() {
           </div>
         </div>
 
-        <!-- Tasks -->
-        <div class="section tasks-section">
-          <p class="sec-title">Tasks & Reminders</p>
-
-          <div class="add-form">
-            <input
-              v-model="newText"
-              placeholder="Add a task…"
-              @keydown.enter="addTask"
-            />
-            <input
-              v-model="newTime"
-              type="time"
-              class="time-in"
-              title="Reminder time (optional)"
-            />
-            <button class="add-btn" :disabled="!newText.trim()" @click="addTask">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-              </svg>
-            </button>
-          </div>
-
-          <div v-if="!selectedDay?.tasks?.length" class="no-tasks">No tasks for this day</div>
-
-          <div v-else class="task-list">
-            <div v-for="task in selectedDay.tasks" :key="task.id" class="task">
-              <button
-                class="check"
-                :class="{ done: task.done }"
-                @click="emit('toggle-task', selectedDate, task.id)"
-              >
-                <svg v-if="task.done" width="10" height="10" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-                </svg>
-              </button>
-              <div class="task-body">
-                <span :class="['task-text', { done: task.done }]">{{ task.text }}</span>
-                <span v-if="task.reminderTime" class="reminder">
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-                    <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                  </svg>
-                  {{ task.reminderTime }}
-                </span>
-              </div>
-              <button
-                class="del-btn"
-                @click="emit('delete-task', selectedDate, task.id)"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
       </template>
 
       <div v-else class="no-sel">Select a day to view details</div>
@@ -586,6 +573,12 @@ function addTask() {
     :initial="editingHabit"
     @save="handleHabitSave"
     @close="closeHabitModal"
+  />
+  <TaskModal
+    v-if="showTaskModal"
+    :today="today"
+    @save="handleTaskSave"
+    @close="closeTaskModal"
   />
 </template>
 
@@ -617,12 +610,17 @@ function addTask() {
   letter-spacing: -0.3px;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
 .dev-date {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
-  margin-right: 0;
 }
 
 .dev-label {
@@ -648,11 +646,9 @@ function addTask() {
 .dev-input:focus { border-color: var(--accent); }
 
 .streak-badge {
-  margin-left: 12px;
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-left: auto;
   font-size: 12px;
   font-weight: 600;
   color: #f59e0b;
@@ -676,6 +672,7 @@ function addTask() {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
 }
 
 .month-nav {
@@ -818,7 +815,6 @@ function addTask() {
 .future-badge { background: rgba(148,163,184,.15); color: var(--muted); }
 
 .section { display: flex; flex-direction: column; gap: 10px; }
-.tasks-section { flex: 1; }
 
 .sec-title {
   font-size: 10px;
@@ -873,41 +869,6 @@ function addTask() {
 .t-status { font-size: 13px; font-weight: 600; }
 .t-status.ok { color: var(--green); }
 .t-status.no { color: var(--muted); }
-
-/* Add form */
-.add-form {
-  display: flex;
-  gap: 7px;
-}
-.add-form input {
-  flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  padding: 8px 11px;
-  font-size: 12px;
-  outline: none;
-  transition: border-color 0.15s;
-  min-width: 0;
-}
-.add-form input:focus { border-color: var(--accent); }
-.time-in { width: 88px; flex: none; color-scheme: dark; }
-
-.add-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.15s;
-}
-.add-btn:hover:not(:disabled) { background: var(--accent-hover); }
-.add-btn:disabled { opacity: 0.45; cursor: default; }
 
 .no-tasks { font-size: 12px; color: var(--muted); }
 
