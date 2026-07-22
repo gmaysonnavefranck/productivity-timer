@@ -4,6 +4,7 @@ import CalendarView from './components/CalendarView.vue';
 import KanbanView from './components/KanbanView.vue';
 import SpeedrunView from './components/SpeedrunView.vue';
 import InvestmentView from './components/InvestmentView.vue';
+import BalanceView from './components/BalanceView.vue';
 import Sidebar from './components/Sidebar.vue';
 import { matchesRule } from './recurrence.js';
 
@@ -20,6 +21,7 @@ const data = reactive({
   cards: [],
   speedruns: [],
   investment: [],
+  balanceEntries: [],
 });
 
 function todayStr() {
@@ -46,6 +48,7 @@ async function loadData() {
     data.cards = saved.cards || [];
     data.speedruns = saved.speedruns || [];
     data.investment = saved.investment || [];
+    data.balanceEntries = saved.balanceEntries || [];
   }
 
   const today = todayStr();
@@ -95,6 +98,7 @@ async function saveData() {
     cards: data.cards,
     speedruns: data.speedruns,
     investment: data.investment,
+    balanceEntries: data.balanceEntries,
   })));
 }
 
@@ -273,6 +277,18 @@ function addInvestmentSnapshot({ date, value }) {
 function deleteInvestmentSnapshot(id) {
   const idx = data.investment.findIndex((s) => s.id === id);
   if (idx !== -1) data.investment.splice(idx, 1);
+  saveData();
+}
+
+// Balance
+function addBalanceEntry({ date, name, amount, category }) {
+  data.balanceEntries.push({ id: uid(), date, name, amount: Number(amount), category: category || '' });
+  saveData();
+}
+
+function deleteBalanceEntry(id) {
+  const idx = data.balanceEntries.findIndex((e) => e.id === id);
+  if (idx !== -1) data.balanceEntries.splice(idx, 1);
   saveData();
 }
 
@@ -521,6 +537,12 @@ onUnmounted(() => {
       :snapshots="data.investment"
       @add-snapshot="addInvestmentSnapshot"
       @delete-snapshot="deleteInvestmentSnapshot"
+    />
+    <BalanceView
+      v-else-if="activeView === 'balance'"
+      :entries="data.balanceEntries"
+      @add-entry="addBalanceEntry"
+      @delete-entry="deleteBalanceEntry"
     />
   </template>
 </template>
