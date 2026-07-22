@@ -3,6 +3,7 @@ import { reactive, onMounted, onUnmounted, ref, computed } from 'vue';
 import CalendarView from './components/CalendarView.vue';
 import KanbanView from './components/KanbanView.vue';
 import SpeedrunView from './components/SpeedrunView.vue';
+import InvestmentView from './components/InvestmentView.vue';
 import Sidebar from './components/Sidebar.vue';
 import { matchesRule } from './recurrence.js';
 
@@ -18,6 +19,7 @@ const data = reactive({
   projects: [],
   cards: [],
   speedruns: [],
+  investment: [],
 });
 
 function todayStr() {
@@ -43,6 +45,7 @@ async function loadData() {
     data.projects = saved.projects || [];
     data.cards = saved.cards || [];
     data.speedruns = saved.speedruns || [];
+    data.investment = saved.investment || [];
   }
 
   const today = todayStr();
@@ -91,6 +94,7 @@ async function saveData() {
     projects: data.projects,
     cards: data.cards,
     speedruns: data.speedruns,
+    investment: data.investment,
   })));
 }
 
@@ -257,6 +261,18 @@ function toggleRecurringTask(dateStr, recurringId) {
   const existing = data.days[dateStr].recurringTaskResults.find((r) => r.id === recurringId);
   if (existing) existing.done = !existing.done;
   else data.days[dateStr].recurringTaskResults.push({ id: recurringId, done: true });
+  saveData();
+}
+
+// Investment
+function addInvestmentSnapshot({ date, value }) {
+  data.investment.push({ id: uid(), date, value: Number(value) });
+  saveData();
+}
+
+function deleteInvestmentSnapshot(id) {
+  const idx = data.investment.findIndex((s) => s.id === id);
+  if (idx !== -1) data.investment.splice(idx, 1);
   saveData();
 }
 
@@ -499,6 +515,12 @@ onUnmounted(() => {
       @add-note="addSpeedrunNote"
       @delete-note="deleteSpeedrunNote"
       @save="saveData"
+    />
+    <InvestmentView
+      v-else-if="activeView === 'investment'"
+      :snapshots="data.investment"
+      @add-snapshot="addInvestmentSnapshot"
+      @delete-snapshot="deleteInvestmentSnapshot"
     />
   </template>
 </template>
