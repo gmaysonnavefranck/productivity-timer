@@ -5,6 +5,7 @@ import KanbanView from './components/KanbanView.vue';
 import SpeedrunView from './components/SpeedrunView.vue';
 import InvestmentView from './components/InvestmentView.vue';
 import BalanceView from './components/BalanceView.vue';
+import AccountantReportView from './components/AccountantReportView.vue';
 import Sidebar from './components/Sidebar.vue';
 import { matchesRule } from './recurrence.js';
 
@@ -22,6 +23,8 @@ const data = reactive({
   speedruns: [],
   investment: [],
   balanceEntries: [],
+  accountantCategories: [],
+  accountantValues: [],
 });
 
 function todayStr() {
@@ -49,6 +52,8 @@ async function loadData() {
     data.speedruns = saved.speedruns || [];
     data.investment = saved.investment || [];
     data.balanceEntries = saved.balanceEntries || [];
+    data.accountantCategories = saved.accountantCategories || [];
+    data.accountantValues = saved.accountantValues || [];
   }
 
   const today = todayStr();
@@ -99,6 +104,8 @@ async function saveData() {
     speedruns: data.speedruns,
     investment: data.investment,
     balanceEntries: data.balanceEntries,
+    accountantCategories: data.accountantCategories,
+    accountantValues: data.accountantValues,
   })));
 }
 
@@ -289,6 +296,33 @@ function addBalanceEntry({ date, name, amount, category }) {
 function deleteBalanceEntry(id) {
   const idx = data.balanceEntries.findIndex((e) => e.id === id);
   if (idx !== -1) data.balanceEntries.splice(idx, 1);
+  saveData();
+}
+
+// Accountant report
+function addAccountantCategory({ name }) {
+  data.accountantCategories.push({ id: uid(), name });
+  saveData();
+}
+
+function deleteAccountantCategory(id) {
+  const idx = data.accountantCategories.findIndex((c) => c.id === id);
+  if (idx !== -1) data.accountantCategories.splice(idx, 1);
+  saveData();
+}
+
+function setAccountantValue(categoryId, month, value) {
+  const existing = data.accountantValues.find((v) => v.categoryId === categoryId && v.month === month);
+  if (value === '' || value === null || value === undefined) {
+    if (existing) {
+      const idx = data.accountantValues.indexOf(existing);
+      data.accountantValues.splice(idx, 1);
+    }
+  } else if (existing) {
+    existing.value = Number(value);
+  } else {
+    data.accountantValues.push({ id: uid(), categoryId, month, value: Number(value) });
+  }
   saveData();
 }
 
@@ -543,6 +577,14 @@ onUnmounted(() => {
       :entries="data.balanceEntries"
       @add-entry="addBalanceEntry"
       @delete-entry="deleteBalanceEntry"
+    />
+    <AccountantReportView
+      v-else-if="activeView === 'accountant'"
+      :categories="data.accountantCategories"
+      :values="data.accountantValues"
+      @add-category="addAccountantCategory"
+      @delete-category="deleteAccountantCategory"
+      @set-value="setAccountantValue"
     />
   </template>
 </template>
