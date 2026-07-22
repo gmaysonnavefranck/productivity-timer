@@ -18,6 +18,21 @@ const VIEWS = [
     label: 'Challenges',
     icon: 'M13 2L4 14h6l-1 8 9-12h-6z',
   },
+  {
+    id: 'investment',
+    label: 'Investment',
+    icon: 'M3 17l6-6 4 4 8-8M15 7h6v6',
+  },
+  {
+    id: 'balance',
+    label: 'Balance',
+    icon: 'M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7zM16 12h2',
+  },
+  {
+    id: 'accountant',
+    label: 'Report',
+    icon: 'M6 2h9l4 4v16H6zM9 9h8M9 13h8M9 17h5',
+  },
 ];
 </script>
 
