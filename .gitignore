@@ -93,3 +93,4 @@ out/
 
 # Claude Code local state
 .claude/
+.superpowers/
