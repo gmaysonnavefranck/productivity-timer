@@ -6,6 +6,7 @@ import SpeedrunView from './components/SpeedrunView.vue';
 import InvestmentView from './components/InvestmentView.vue';
 import BalanceView from './components/BalanceView.vue';
 import AccountantReportView from './components/AccountantReportView.vue';
+import ListsView from './components/ListsView.vue';
 import Sidebar from './components/Sidebar.vue';
 import { matchesRule } from './recurrence.js';
 
@@ -25,6 +26,7 @@ const data = reactive({
   balanceEntries: [],
   accountantCategories: [],
   accountantValues: [],
+  lists: [],
 });
 
 function todayStr() {
@@ -54,6 +56,7 @@ async function loadData() {
     data.balanceEntries = saved.balanceEntries || [];
     data.accountantCategories = saved.accountantCategories || [];
     data.accountantValues = saved.accountantValues || [];
+    data.lists = saved.lists || [];
   }
 
   const today = todayStr();
@@ -106,6 +109,7 @@ async function saveData() {
     balanceEntries: data.balanceEntries,
     accountantCategories: data.accountantCategories,
     accountantValues: data.accountantValues,
+    lists: data.lists,
   })));
 }
 
@@ -446,6 +450,69 @@ function deleteSpeedrunNote(id, noteId) {
   saveData();
 }
 
+// Lists
+function addList({ name, fields }) {
+  data.lists.push({
+    id: uid(),
+    name: name.trim(),
+    createdAt: Date.now(),
+    fields: (fields || []).map((f) => ({
+      id: uid(),
+      label: f.label.trim(),
+      type: f.type,
+      options: f.type === 'select' ? (f.options || []) : [],
+    })),
+    rows: [],
+  });
+  saveData();
+}
+
+function renameList(id, name) {
+  const list = data.lists.find((l) => l.id === id);
+  if (list) list.name = name.trim();
+  saveData();
+}
+
+function deleteList(id) {
+  const idx = data.lists.findIndex((l) => l.id === id);
+  if (idx !== -1) data.lists.splice(idx, 1);
+  saveData();
+}
+
+function updateListFields(listId, fields) {
+  const list = data.lists.find((l) => l.id === listId);
+  if (!list) return;
+  list.fields = fields.map((f) => ({
+    id: f.id || uid(),
+    label: f.label.trim(),
+    type: f.type,
+    options: f.type === 'select' ? (f.options || []) : [],
+  }));
+  saveData();
+}
+
+function addListRow(listId, values) {
+  const list = data.lists.find((l) => l.id === listId);
+  if (!list) return;
+  list.rows.push({ id: uid(), createdAt: Date.now(), values: { ...values } });
+  saveData();
+}
+
+function updateListRow(listId, rowId, values) {
+  const list = data.lists.find((l) => l.id === listId);
+  const row = list?.rows.find((r) => r.id === rowId);
+  if (row) row.values = { ...values };
+  saveData();
+}
+
+function deleteListRow(listId, rowId) {
+  const list = data.lists.find((l) => l.id === listId);
+  if (!list) return;
+  const idx = list.rows.findIndex((r) => r.id === rowId);
+  if (idx !== -1) list.rows.splice(idx, 1);
+  saveData();
+}
+
 // Midnight rollover
 let midnightTimer = null;
 function scheduleMidnight() {
@@ -585,6 +652,17 @@ onUnmounted(() => {
       @add-category="addAccountantCategory"
       @delete-category="deleteAccountantCategory"
       @set-value="setAccountantValue"
+    />
+    <ListsView
+      v-else-if="activeView === 'lists'"
+      :lists="data.lists"
+      @add-list="addList"
+      @rename-list="renameList"
+      @delete-list="deleteList"
+      @update-fields="updateListFields"
+      @add-row="addListRow"
+      @update-row="updateListRow"
+      @delete-row="deleteListRow"
     />
   </template>
 </template>

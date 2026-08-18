@@ -33,6 +33,11 @@ const VIEWS = [
     label: 'Report',
     icon: 'M6 2h9l4 4v16H6zM9 9h8M9 13h8M9 17h5',
   },
+  {
+    id: 'lists',
+    label: 'Lists',
+    icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  },
 ];
 </script>
 
