@@ -7,6 +7,7 @@ import InvestmentView from './components/InvestmentView.vue';
 import BalanceView from './components/BalanceView.vue';
 import AccountantReportView from './components/AccountantReportView.vue';
 import ListsView from './components/ListsView.vue';
+import NotesView from './components/NotesView.vue';
 import Sidebar from './components/Sidebar.vue';
 import { matchesRule } from './recurrence.js';
 
@@ -27,6 +28,7 @@ const data = reactive({
   accountantCategories: [],
   accountantValues: [],
   lists: [],
+  notesText: '',
 });
 
 function todayStr() {
@@ -57,6 +59,7 @@ async function loadData() {
     data.accountantCategories = saved.accountantCategories || [];
     data.accountantValues = saved.accountantValues || [];
     data.lists = saved.lists || [];
+    data.notesText = saved.notesText || '';
   }
 
   const today = todayStr();
@@ -110,6 +113,7 @@ async function saveData() {
     accountantCategories: data.accountantCategories,
     accountantValues: data.accountantValues,
     lists: data.lists,
+    notesText: data.notesText,
   })));
 }
 
@@ -513,6 +517,12 @@ function deleteListRow(listId, rowId) {
   saveData();
 }
 
+// Notes
+function updateNotesText(text) {
+  data.notesText = text;
+  saveData();
+}
+
 // Midnight rollover
 let midnightTimer = null;
 function scheduleMidnight() {
@@ -663,6 +673,11 @@ onUnmounted(() => {
       @add-row="addListRow"
       @update-row="updateListRow"
       @delete-row="deleteListRow"
+    />
+    <NotesView
+      v-else-if="activeView === 'notes'"
+      :text="data.notesText"
+      @update-text="updateNotesText"
     />
   </template>
 </template>

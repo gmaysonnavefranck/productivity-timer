@@ -38,6 +38,11 @@ const VIEWS = [
     label: 'Lists',
     icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   },
+  {
+    id: 'notes',
+    label: 'Notes',
+    icon: 'M4 4h5v16H4zM11 4h9v16h-9zM13 9h5M13 13h5M13 17h3',
+  },
 ];
 </script>
 
