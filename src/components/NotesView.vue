@@ -1,9 +1,17 @@
 <script setup>
-import { ref, computed, onBeforeUnmount } from 'vue';
+import { ref, computed, onBeforeUnmount, watch } from 'vue';
 
-const props = defineProps({ text: String });
-const emit = defineEmits(['update-text']);
+const props = defineProps({
+  text: String,
+  days: { type: Object, default: () => ({}) },
+  today: String,
+  openDate: Object,
+});
+const emit = defineEmits(['update-text', 'update-day-note']);
 
+const mode = ref('journal'); // 'journal' | 'freeform'
+
+// ---- Freeform document ----
 const fullText = ref(props.text || '');
 const selectedIndex = ref(null); // null = whole document
 const draftText = ref(fullText.value);
@@ -33,7 +41,7 @@ const sections = computed(() =>
   parseSections(selectedIndex.value === null ? draftText.value : fullText.value)
 );
 
-function commit() {
+function commitFreeform() {
   const next = activeRange
     ? fullText.value.slice(0, activeRange.start) + draftText.value + fullText.value.slice(activeRange.end)
     : draftText.value;
@@ -45,14 +53,14 @@ function commit() {
 
 function selectAll() {
   if (selectedIndex.value === null) return;
-  commit();
+  commitFreeform();
   selectedIndex.value = null;
   activeRange = null;
   draftText.value = fullText.value;
 }
 
 function selectSection(i) {
-  commit();
+  commitFreeform();
   const s = parseSections(fullText.value)[i];
   if (!s) return;
   selectedIndex.value = i;
@@ -60,16 +68,119 @@ function selectSection(i) {
   draftText.value = fullText.value.slice(s.start, s.end);
 }
 
-onBeforeUnmount(commit);
+// ---- Journal (per-day entries) ----
+const selectedJournalDate = ref(props.today || '');
+const draftNote = ref(props.days[selectedJournalDate.value]?.note || '');
+
+function loadNote(dateStr) {
+  draftNote.value = props.days[dateStr]?.note || '';
+}
+
+function commitJournal() {
+  if (!selectedJournalDate.value) return;
+  emit('update-day-note', selectedJournalDate.value, draftNote.value);
+}
+
+function selectJournalDate(dateStr) {
+  if (dateStr === selectedJournalDate.value) return;
+  commitJournal();
+  selectedJournalDate.value = dateStr;
+  loadNote(dateStr);
+}
+
+const journalDates = computed(() => {
+  const dates = new Set(
+    Object.keys(props.days).filter((d) => (props.days[d]?.note || '').trim())
+  );
+  if (props.today) dates.add(props.today);
+  return [...dates].sort((a, b) => (a < b ? 1 : -1));
+});
+
+function notePreview(dateStr) {
+  const note = (props.days[dateStr]?.note || '').trim();
+  if (!note) return '';
+  const firstLine = note.split('\n').find((l) => l.trim()) || '';
+  return firstLine.length > 46 ? firstLine.slice(0, 46) + '…' : firstLine;
+}
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatShort(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+function formatFull(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+// ---- Mode switching ----
+function switchMode(next) {
+  if (next === mode.value) return;
+  if (mode.value === 'freeform') commitFreeform();
+  else commitJournal();
+  mode.value = next;
+}
+
+// Jumping in from the calendar's "Open Journal" link
+watch(() => props.openDate, (val) => {
+  if (!val) return;
+  if (mode.value === 'freeform') commitFreeform();
+  else commitJournal();
+  mode.value = 'journal';
+  selectedJournalDate.value = val.date;
+  loadNote(val.date);
+});
+
+onBeforeUnmount(() => {
+  commitFreeform();
+  commitJournal();
+});
 </script>
 
 <template>
   <div class="notes-view">
     <header class="view-header">
       <h1>Notes</h1>
+      <div class="mode-tabs">
+        <button class="mode-tab" :class="{ active: mode === 'journal' }" @click="switchMode('journal')">Journal</button>
+        <button class="mode-tab" :class="{ active: mode === 'freeform' }" @click="switchMode('freeform')">Freeform</button>
+      </div>
     </header>
 
-    <div class="content">
+    <div v-if="mode === 'journal'" class="content">
+      <nav class="outline">
+        <button
+          v-for="d in journalDates"
+          :key="d"
+          class="journal-item"
+          :class="{ active: d === selectedJournalDate }"
+          @click="selectJournalDate(d)"
+        >
+          <div class="journal-item-top">
+            <span class="journal-item-date">{{ formatShort(d) }}</span>
+            <span v-if="d === today" class="journal-today-badge">Today</span>
+          </div>
+          <span class="journal-item-preview">{{ notePreview(d) || (d === today ? 'No entry yet' : '') }}</span>
+        </button>
+      </nav>
+
+      <div class="journal-editor">
+        <h2 class="journal-heading">{{ formatFull(selectedJournalDate) }}</h2>
+        <textarea
+          v-model="draftNote"
+          class="journal-textarea"
+          spellcheck="false"
+          placeholder="Write about your day…"
+          @blur="commitJournal"
+        />
+      </div>
+    </div>
+
+    <div v-else class="content">
       <nav class="outline">
         <button
           class="outline-item all"
@@ -101,7 +212,7 @@ onBeforeUnmount(commit);
         class="editor"
         spellcheck="false"
         placeholder="Start typing…"
-        @blur="commit"
+        @blur="commitFreeform"
       />
     </div>
   </div>
@@ -127,6 +238,26 @@ onBeforeUnmount(commit);
 }
 .view-header h1 { font-size: 19px; font-weight: 600; }
 
+.mode-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.mode-tab {
+  padding: 6px 16px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.mode-tab:hover { color: var(--text); }
+.mode-tab.active { background: var(--accent); color: white; }
+
 .content {
   flex: 1;
   display: flex;
@@ -134,7 +265,7 @@ onBeforeUnmount(commit);
 }
 
 .outline {
-  width: 200px;
+  width: 220px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -201,4 +332,81 @@ onBeforeUnmount(commit);
   outline: none;
 }
 .editor::placeholder { color: var(--muted); }
+
+/* Journal */
+.journal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  transition: all 0.15s;
+}
+.journal-item:hover { background: var(--surface-2); color: var(--text); }
+.journal-item.active { background: rgba(99,102,241,.15); }
+
+.journal-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.journal-item-date {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.journal-item.active .journal-item-date { color: var(--accent); }
+
+.journal-today-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  background: rgba(99,102,241,.15);
+  padding: 1px 6px;
+  border-radius: 100px;
+  flex-shrink: 0;
+}
+
+.journal-item-preview {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.journal-editor {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 40px;
+  overflow-y: auto;
+}
+
+.journal-heading {
+  font-size: 21px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.journal-textarea {
+  flex: 1;
+  min-height: 360px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.8;
+  resize: none;
+  outline: none;
+}
+.journal-textarea::placeholder { color: var(--muted); }
 </style>

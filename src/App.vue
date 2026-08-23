@@ -13,12 +13,19 @@ import { matchesRule } from './recurrence.js';
 
 const isLoaded = ref(false);
 const activeView = ref('timers');
+const journalOpenDate = ref(null);
+
+function openJournal(dateStr) {
+  journalOpenDate.value = { date: dateStr, at: Date.now() };
+  activeView.value = 'notes';
+}
 
 const data = reactive({
   lastDate: todayStr(),
   timers: [],
   habits: [],
   recurringTasks: [],
+  anytimeTasks: [],
   days: {},
   projects: [],
   cards: [],
@@ -49,6 +56,7 @@ async function loadData() {
     data.timers = saved.timers || [];
     data.habits = saved.habits || [];
     data.recurringTasks = saved.recurringTasks || [];
+    data.anytimeTasks = saved.anytimeTasks || [];
     data.days = saved.days || {};
     data.lastDate = saved.lastDate || todayStr();
     data.projects = saved.projects || [];
@@ -104,6 +112,7 @@ async function saveData() {
     timers: data.timers,
     habits: data.habits,
     recurringTasks: data.recurringTasks,
+    anytimeTasks: data.anytimeTasks,
     days: data.days,
     projects: data.projects,
     cards: data.cards,
@@ -280,6 +289,29 @@ function toggleRecurringTask(dateStr, recurringId) {
   const existing = data.days[dateStr].recurringTaskResults.find((r) => r.id === recurringId);
   if (existing) existing.done = !existing.done;
   else data.days[dateStr].recurringTaskResults.push({ id: recurringId, done: true });
+  saveData();
+}
+
+// Anytime tasks (no date)
+function addAnytimeTask(taskData) {
+  data.anytimeTasks.push({
+    id: uid(),
+    text: taskData.text,
+    reminderTime: taskData.reminderTime || null,
+    done: false,
+  });
+  saveData();
+}
+
+function toggleAnytimeTask(id) {
+  const t = data.anytimeTasks.find((t) => t.id === id);
+  if (t) t.done = !t.done;
+  saveData();
+}
+
+function deleteAnytimeTask(id) {
+  const idx = data.anytimeTasks.findIndex((t) => t.id === id);
+  if (idx !== -1) data.anytimeTasks.splice(idx, 1);
   saveData();
 }
 
@@ -569,6 +601,15 @@ function checkReminders() {
       try { if (Notification.permission === 'granted') new Notification('Reminder', { body: rt.text }); } catch (_) {}
     }
   });
+
+  data.anytimeTasks.forEach((task) => {
+    if (task.reminderTime !== timeStr || task.done) return;
+    const key = `a:${data.lastDate}:${task.id}`;
+    if (!remindedIds.has(key)) {
+      remindedIds.add(key);
+      try { if (Notification.permission === 'granted') new Notification('Reminder', { body: task.text }); } catch (_) {}
+    }
+  });
 }
 
 onMounted(() => {
@@ -598,6 +639,7 @@ onUnmounted(() => {
       :timers="data.timers"
       :habits="data.habits"
       :recurring-tasks="data.recurringTasks"
+      :anytime-tasks="data.anytimeTasks"
       :streak="streak"
       :today="data.lastDate"
       @add-task="addTask"
@@ -606,6 +648,9 @@ onUnmounted(() => {
       @add-recurring-task="addRecurringTask"
       @delete-recurring-task="deleteRecurringTask"
       @toggle-recurring-task="toggleRecurringTask"
+      @add-anytime-task="addAnytimeTask"
+      @toggle-anytime-task="toggleAnytimeTask"
+      @delete-anytime-task="deleteAnytimeTask"
       @add-timer="addTimer"
       @edit-timer="editTimer"
       @update-timer="updateTimer"
@@ -616,8 +661,8 @@ onUnmounted(() => {
       @edit-habit="editHabit"
       @delete-habit="deleteHabit"
       @toggle-habit="toggleHabit"
-      @update-note="updateNote"
       @change-date="changeDate"
+      @open-journal="openJournal"
     />
     <KanbanView
       v-else-if="activeView === 'kanban'"
@@ -677,7 +722,11 @@ onUnmounted(() => {
     <NotesView
       v-else-if="activeView === 'notes'"
       :text="data.notesText"
+      :days="data.days"
+      :today="data.lastDate"
+      :open-date="journalOpenDate"
       @update-text="updateNotesText"
+      @update-day-note="updateNote"
     />
   </template>
 </template>

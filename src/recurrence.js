@@ -32,3 +32,12 @@ export function matchesRule(rule, dateStr) {
   }
   return false;
 }
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+export function describeRule(rule) {
+  const base = rule.type === 'monthly'
+    ? `Every month, day ${rule.day}`
+    : `Every year, ${MONTHS[rule.month - 1]} ${rule.day}`;
+  return rule.shiftWeekends === false ? base : `${base} (weekends → Friday)`;
+}

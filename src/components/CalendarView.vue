@@ -4,6 +4,7 @@ import TimerCard from './TimerCard.vue';
 import AddTimerModal from './AddTimerModal.vue';
 import HabitModal from './HabitModal.vue';
 import TaskModal from './TaskModal.vue';
+import RecurringTasksModal from './RecurringTasksModal.vue';
 import { matchesRule } from '../recurrence.js';
 
 const props = defineProps({
@@ -11,14 +12,16 @@ const props = defineProps({
   timers: Array,
   habits: Array,
   recurringTasks: Array,
+  anytimeTasks: { type: Array, default: () => [] },
   streak: Number,
   today: String,
 });
 const emit = defineEmits([
   'add-task', 'toggle-task', 'delete-task',
   'add-recurring-task', 'delete-recurring-task', 'toggle-recurring-task',
+  'add-anytime-task', 'toggle-anytime-task', 'delete-anytime-task',
   'add-timer', 'edit-timer', 'update-timer', 'delete-timer', 'reset-timer', 'save',
-  'add-habit', 'edit-habit', 'delete-habit', 'toggle-habit', 'update-note', 'change-date',
+  'add-habit', 'edit-habit', 'delete-habit', 'toggle-habit', 'change-date', 'open-journal',
 ]);
 
 const showTimerModal = ref(false);
@@ -83,9 +86,6 @@ const futureHabits = computed(() => {
   if (!selectedDate.value || !isSelectedFuture.value) return [];
   return activeHabitsForDate(selectedDate.value);
 });
-
-// Notes
-const noteText = ref('');
 
 // Weekly stats
 function toDateStr(d) {
@@ -246,10 +246,6 @@ function formatDur(secs) {
 // Task form
 const showTaskModal = ref(false);
 
-watch(selectedDate, () => {
-  noteText.value = props.days[selectedDate.value]?.note || '';
-});
-
 function openAddTask() { showTaskModal.value = true; }
 
 function handleTaskSave({ date, text, reminderTime }) {
@@ -262,7 +258,22 @@ function handleRecurringSave(taskData) {
   showTaskModal.value = false;
 }
 
+function handleAnytimeSave(taskData) {
+  emit('add-anytime-task', taskData);
+  showTaskModal.value = false;
+}
+
 function closeTaskModal() { showTaskModal.value = false; }
+
+// Recurring task management (browsed/deleted in their own modal)
+const showRecurringModal = ref(false);
+
+// Journal preview (full editing lives on the Notes page)
+const journalPreview = computed(() => {
+  const note = (selectedDate.value && props.days[selectedDate.value]?.note || '').trim();
+  if (!note) return '';
+  return note.length > 160 ? note.slice(0, 160) + '…' : note;
+});
 
 // Recurring task occurrences for the selected day
 const recurringForSelected = computed(() => {
@@ -396,6 +407,47 @@ const allTasksForSelected = computed(() => [
         </div>
       </div>
 
+      <!-- Anytime reminders (no date) -->
+      <div v-if="anytimeTasks.length" class="section tasks-section">
+        <p class="sec-title">Anytime</p>
+        <div class="task-list">
+          <div v-for="task in anytimeTasks" :key="task.id" class="task">
+            <button
+              class="check"
+              :class="{ done: task.done }"
+              @click="emit('toggle-anytime-task', task.id)"
+            >
+              <svg v-if="task.done" width="10" height="10" viewBox="0 0 24 24" fill="none">
+                <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <div class="task-body">
+              <span :class="['task-text', { done: task.done }]">{{ task.text }}</span>
+              <span v-if="task.reminderTime" class="reminder">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                  <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                {{ task.reminderTime }} daily
+              </span>
+            </div>
+            <button class="del-btn" @click="emit('delete-anytime-task', task.id)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recurring tasks (browsed/managed in their own modal) -->
+      <div v-if="recurringTasks.length" class="section">
+        <div class="sec-header">
+          <p class="sec-title">Recurring ({{ recurringTasks.length }})</p>
+          <button class="btn-add-sm" @click="showRecurringModal = true">Manage</button>
+        </div>
+      </div>
+
       <!-- Tasks -->
       <div class="section tasks-section">
         <p class="sec-title">Tasks & Reminders</p>
@@ -512,16 +564,14 @@ const allTasksForSelected = computed(() => [
           </div>
         </div>
 
-        <!-- Notes (today and past) -->
+        <!-- Journal (today and past) -->
         <div v-if="!isSelectedFuture" class="section">
-          <p class="sec-title">Notes</p>
-          <textarea
-            v-model="noteText"
-            class="note-area"
-            placeholder="Notes for today's sessions…"
-            rows="2"
-            @blur="emit('update-note', selectedDate, noteText)"
-          />
+          <div class="sec-header">
+            <p class="sec-title">Journal</p>
+            <button class="btn-add-sm" @click="emit('open-journal', selectedDate)">Open Journal</button>
+          </div>
+          <p v-if="journalPreview" class="journal-preview">{{ journalPreview }}</p>
+          <p v-else class="no-tasks">No entry yet for this day.</p>
         </div>
 
         <!-- Daily Habits (today: interactive) -->
@@ -611,11 +661,16 @@ const allTasksForSelected = computed(() => [
   <TaskModal
     v-if="showTaskModal"
     :today="today"
-    :recurring-tasks="recurringTasks"
     @save="handleTaskSave"
     @save-recurring="handleRecurringSave"
-    @delete-recurring="emit('delete-recurring-task', $event)"
+    @save-anytime="handleAnytimeSave"
     @close="closeTaskModal"
+  />
+  <RecurringTasksModal
+    v-if="showRecurringModal"
+    :recurring-tasks="recurringTasks"
+    @delete="emit('delete-recurring-task', $event)"
+    @close="showRecurringModal = false"
   />
 </template>
 
@@ -992,23 +1047,17 @@ const allTasksForSelected = computed(() => [
   color: var(--muted);
 }
 
-/* Notes */
-.note-area {
-  width: 100%;
+/* Journal preview */
+.journal-preview {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--text);
-  padding: 8px 11px;
-  font-size: 12px;
-  font-family: inherit;
-  resize: none;
-  outline: none;
-  transition: border-color 0.15s;
-  line-height: 1.5;
+  padding: 10px 12px;
+  white-space: pre-wrap;
 }
-.note-area:focus { border-color: var(--accent); }
-.note-area::placeholder { color: var(--muted); }
 
 /* Habit list */
 .habit-list { display: flex; flex-direction: column; gap: 4px; }
