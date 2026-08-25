@@ -86,7 +86,7 @@ function isWeekend(dateStr) {
 }
 
 function rolloverDay(dateStr) {
-  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '' };
+  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '', noteTimes: [] };
   const weekend = isWeekend(dateStr);
 
   data.days[dateStr].timerResults = data.timers
@@ -189,7 +189,7 @@ function deleteHabit(id) {
 }
 
 function toggleHabit(dateStr, habitId) {
-  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '' };
+  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '', noteTimes: [] };
   if (!data.days[dateStr].habitResults) data.days[dateStr].habitResults = [];
   const existing = data.days[dateStr].habitResults.find((r) => r.id === habitId);
   if (existing) {
@@ -210,9 +210,10 @@ function changeDate(newDate) {
 }
 
 // Notes
-function updateNote(dateStr, text) {
-  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '' };
+function updateNote(dateStr, text, times) {
+  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '', noteTimes: [] };
   data.days[dateStr].note = text;
+  data.days[dateStr].noteTimes = times;
   saveData();
 }
 
@@ -284,7 +285,7 @@ function deleteRecurringTask(id) {
 }
 
 function toggleRecurringTask(dateStr, recurringId) {
-  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '' };
+  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '', noteTimes: [] };
   if (!data.days[dateStr].recurringTaskResults) data.days[dateStr].recurringTaskResults = [];
   const existing = data.days[dateStr].recurringTaskResults.find((r) => r.id === recurringId);
   if (existing) existing.done = !existing.done;
