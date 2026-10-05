@@ -8,8 +8,10 @@ import BalanceView from './components/BalanceView.vue';
 import AccountantReportView from './components/AccountantReportView.vue';
 import ListsView from './components/ListsView.vue';
 import NotesView from './components/NotesView.vue';
+import TimelineView from './components/TimelineView.vue';
 import Sidebar from './components/Sidebar.vue';
 import { matchesRule } from './recurrence.js';
+import { splitParagraphs, formatClockTime } from './journalTime.js';
 
 const isLoaded = ref(false);
 const activeView = ref('timers');
@@ -36,6 +38,8 @@ const data = reactive({
   accountantValues: [],
   lists: [],
   notesText: '',
+  lifeCategories: [],
+  lifeEvents: [],
 });
 
 function todayStr() {
@@ -68,6 +72,8 @@ async function loadData() {
     data.accountantValues = saved.accountantValues || [];
     data.lists = saved.lists || [];
     data.notesText = saved.notesText || '';
+    data.lifeCategories = saved.lifeCategories || [];
+    data.lifeEvents = saved.lifeEvents || [];
   }
 
   const today = todayStr();
@@ -123,6 +129,8 @@ async function saveData() {
     accountantValues: data.accountantValues,
     lists: data.lists,
     notesText: data.notesText,
+    lifeCategories: data.lifeCategories,
+    lifeEvents: data.lifeEvents,
   })));
 }
 
@@ -210,6 +218,18 @@ function changeDate(newDate) {
 }
 
 // Notes
+function appendJournalEntry(dateStr, text) {
+  if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '', noteTimes: [] };
+  const day = data.days[dateStr];
+  const paras = splitParagraphs(day.note || '');
+  const times = [...(day.noteTimes || [])];
+  while (times.length < paras.length) times.push('');
+  paras.push(text);
+  times.push(formatClockTime());
+  day.note = paras.join('\n\n');
+  day.noteTimes = times;
+}
+
 function updateNote(dateStr, text, times) {
   if (!data.days[dateStr]) data.days[dateStr] = { tasks: [], timerResults: [], habitResults: [], note: '', noteTimes: [] };
   data.days[dateStr].note = text;
@@ -306,7 +326,10 @@ function addAnytimeTask(taskData) {
 
 function toggleAnytimeTask(id) {
   const t = data.anytimeTasks.find((t) => t.id === id);
-  if (t) t.done = !t.done;
+  if (t) {
+    t.done = !t.done;
+    if (t.done) appendJournalEntry(data.lastDate, `✓ ${t.text}`);
+  }
   saveData();
 }
 
@@ -427,6 +450,54 @@ function moveCard({ id, status, beforeCardId, afterCardId }) {
   else insertAt = data.cards.length;
   if (insertAt === -1) insertAt = data.cards.length;
   data.cards.splice(insertAt, 0, card);
+  saveData();
+}
+
+// Life Timeline: categories
+function addLifeCategory(categoryData) {
+  data.lifeCategories.push({ id: uid(), name: categoryData.name, color: categoryData.color });
+  saveData();
+}
+
+function editLifeCategory(id, categoryData) {
+  const c = data.lifeCategories.find((c) => c.id === id);
+  if (c) { c.name = categoryData.name; c.color = categoryData.color; }
+  saveData();
+}
+
+function deleteLifeCategory(id) {
+  const idx = data.lifeCategories.findIndex((c) => c.id === id);
+  if (idx !== -1) data.lifeCategories.splice(idx, 1);
+  data.lifeEvents = data.lifeEvents.filter((e) => e.categoryId !== id);
+  saveData();
+}
+
+// Life Timeline: events
+function addLifeEvent(eventData) {
+  data.lifeEvents.push({
+    id: uid(),
+    categoryId: eventData.categoryId,
+    title: eventData.title,
+    start: eventData.start,
+    end: eventData.end || null,
+  });
+  saveData();
+}
+
+function editLifeEvent(id, eventData) {
+  const e = data.lifeEvents.find((e) => e.id === id);
+  if (e) {
+    e.categoryId = eventData.categoryId;
+    e.title = eventData.title;
+    e.start = eventData.start;
+    e.end = eventData.end || null;
+  }
+  saveData();
+}
+
+function deleteLifeEvent(id) {
+  const idx = data.lifeEvents.findIndex((e) => e.id === id);
+  if (idx !== -1) data.lifeEvents.splice(idx, 1);
   saveData();
 }
 
@@ -728,6 +799,18 @@ onUnmounted(() => {
       :open-date="journalOpenDate"
       @update-text="updateNotesText"
       @update-day-note="updateNote"
+    />
+    <TimelineView
+      v-else-if="activeView === 'timeline'"
+      :categories="data.lifeCategories"
+      :events="data.lifeEvents"
+      :today="data.lastDate"
+      @add-category="addLifeCategory"
+      @edit-category="editLifeCategory"
+      @delete-category="deleteLifeCategory"
+      @add-event="addLifeEvent"
+      @edit-event="editLifeEvent"
+      @delete-event="deleteLifeEvent"
     />
   </template>
 </template>

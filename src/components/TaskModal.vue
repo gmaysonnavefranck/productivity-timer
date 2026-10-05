@@ -16,7 +16,7 @@ const mode = ref('once'); // 'once' | 'repeating' | 'anytime'
 const repeatType = ref('monthly');
 const repeatDay = ref(1);
 const repeatMonth = ref(1);
-const shiftWeekends = ref(true);
+const weekendShift = ref('friday'); // 'friday' | 'monday' | 'none'
 
 const isValid = computed(() => {
   if (!text.value.trim()) return false;
@@ -35,8 +35,8 @@ function submit() {
   if (!isValid.value) return;
   if (mode.value === 'repeating') {
     const rule = repeatType.value === 'monthly'
-      ? { type: 'monthly', day: Number(repeatDay.value), shiftWeekends: shiftWeekends.value }
-      : { type: 'yearly', month: Number(repeatMonth.value), day: Number(repeatDay.value), shiftWeekends: shiftWeekends.value };
+      ? { type: 'monthly', day: Number(repeatDay.value), weekendShift: weekendShift.value }
+      : { type: 'yearly', month: Number(repeatMonth.value), day: Number(repeatDay.value), weekendShift: weekendShift.value };
     emit('save-recurring', { text: text.value.trim(), reminderTime: time.value || null, rule });
   } else if (mode.value === 'anytime') {
     emit('save-anytime', { text: text.value.trim(), reminderTime: time.value || null });
@@ -94,12 +94,14 @@ onMounted(() => document.getElementById('task-text')?.focus());
           <input type="number" v-model.number="repeatDay" min="1" max="31" />
         </div>
 
-        <label class="toggle-row">
-          <span class="toggle-label">Shift weekends to Friday</span>
-          <button type="button" class="toggle" :class="{ on: shiftWeekends }" @click="shiftWeekends = !shiftWeekends">
-            <span class="thumb" />
-          </button>
-        </label>
+        <div class="field">
+          <label>If it lands on a weekend</label>
+          <div class="mode-tabs">
+            <button type="button" class="mode-tab" :class="{ active: weekendShift === 'friday' }" @click="weekendShift = 'friday'">To Friday</button>
+            <button type="button" class="mode-tab" :class="{ active: weekendShift === 'monday' }" @click="weekendShift = 'monday'">To Monday</button>
+            <button type="button" class="mode-tab" :class="{ active: weekendShift === 'none' }" @click="weekendShift = 'none'">Don't shift</button>
+          </div>
+        </div>
       </template>
 
       <p v-else class="hint">No date — this stays on your list until you check it off.</p>
@@ -190,36 +192,6 @@ input:focus, .select:focus { border-color: var(--accent); }
 }
 .mode-tab:hover { color: var(--text); }
 .mode-tab.active { background: var(--accent); color: white; }
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-}
-.toggle-label { font-size: 13px; color: var(--text); }
-.toggle {
-  width: 36px;
-  height: 20px;
-  border-radius: 10px;
-  background: var(--border);
-  position: relative;
-  transition: background 0.2s;
-  flex-shrink: 0;
-  padding: 0;
-}
-.toggle.on { background: var(--accent); }
-.thumb {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: white;
-  transition: left 0.2s;
-}
-.toggle.on .thumb { left: 19px; }
 
 .actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 2px; }
 

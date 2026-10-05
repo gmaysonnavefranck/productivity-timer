@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import TimerCard from './TimerCard.vue';
 import AddTimerModal from './AddTimerModal.vue';
 import HabitModal from './HabitModal.vue';
@@ -130,6 +130,11 @@ const weeklyStats = computed(() => {
 const currentMonth = ref(new Date());
 const selectedDate = ref(props.today);
 
+function goToToday() {
+  currentMonth.value = new Date(props.today + 'T00:00:00');
+  selectedDate.value = props.today;
+}
+
 watch(() => props.today, (newDate) => {
   selectedDate.value = newDate;
   const d = new Date(newDate + 'T00:00:00');
@@ -155,15 +160,13 @@ const calendarDays = computed(() => {
 });
 
 function prevMonth() {
-  const d = new Date(currentMonth.value);
-  d.setMonth(d.getMonth() - 1);
-  currentMonth.value = d;
+  const d = currentMonth.value;
+  currentMonth.value = new Date(d.getFullYear(), d.getMonth() - 1, 1);
 }
 
 function nextMonth() {
-  const d = new Date(currentMonth.value);
-  d.setMonth(d.getMonth() + 1);
-  currentMonth.value = d;
+  const d = currentMonth.value;
+  currentMonth.value = new Date(d.getFullYear(), d.getMonth() + 1, 1);
 }
 
 function dayStatus(dateStr) {
@@ -263,6 +266,18 @@ function handleAnytimeSave(taskData) {
   showTaskModal.value = false;
 }
 
+// Quick-add for anytime reminders: type, Enter, type, Enter — no modal round-trip
+const anytimeDraft = ref('');
+const anytimeInputRef = ref(null);
+
+function submitQuickAnytime() {
+  const text = anytimeDraft.value.trim();
+  if (!text) return;
+  emit('add-anytime-task', { text, reminderTime: null });
+  anytimeDraft.value = '';
+  nextTick(() => anytimeInputRef.value?.focus());
+}
+
 function closeTaskModal() { showTaskModal.value = false; }
 
 // Recurring task management (browsed/deleted in their own modal)
@@ -294,6 +309,40 @@ const allTasksForSelected = computed(() => [
   ...recurringForSelected.value,
   ...(selectedDay.value?.tasks || []).map((t) => ({ ...t, recurring: false })),
 ]);
+
+// Month-wide task list: every day in the displayed month that has tasks,
+// so they can be ticked off without navigating the calendar day by day.
+const taskViewMode = ref('day'); // 'day' | 'month'
+
+const monthTasks = computed(() => {
+  const y = currentMonth.value.getFullYear();
+  const m = currentMonth.value.getMonth();
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const groups = [];
+  for (let d = 1; d <= lastDay; d++) {
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const results = props.days[dateStr]?.recurringTaskResults || [];
+    const recurring = (props.recurringTasks || [])
+      .filter((rt) => matchesRule(rt.rule, dateStr))
+      .map((rt) => ({
+        id: rt.id,
+        text: rt.text,
+        reminderTime: rt.reminderTime,
+        done: results.find((r) => r.id === rt.id)?.done || false,
+        recurring: true,
+      }));
+    const oneTime = (props.days[dateStr]?.tasks || []).map((t) => ({ ...t, recurring: false }));
+    const tasks = [...recurring, ...oneTime];
+    if (tasks.length) groups.push({ date: dateStr, tasks });
+  }
+  return groups;
+});
+
+function formatGroupLabel(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  return dateStr === props.today ? `${label} · Today` : label;
+}
 </script>
 
 <template>
@@ -340,7 +389,10 @@ const allTasksForSelected = computed(() => [
             <path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
         </button>
-        <span class="month-label">{{ monthLabel }}</span>
+        <div class="month-label-group">
+          <span class="month-label">{{ monthLabel }}</span>
+          <button class="today-link" @click="goToToday">Today</button>
+        </div>
         <button class="nav-btn" @click="nextMonth">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
             <path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -408,9 +460,17 @@ const allTasksForSelected = computed(() => [
       </div>
 
       <!-- Anytime reminders (no date) -->
-      <div v-if="anytimeTasks.length" class="section tasks-section">
+      <div class="section tasks-section">
         <p class="sec-title">Anytime</p>
-        <div class="task-list">
+        <form class="quick-add" @submit.prevent="submitQuickAnytime">
+          <input
+            ref="anytimeInputRef"
+            v-model="anytimeDraft"
+            class="quick-add-input"
+            placeholder="Add a reminder… press Enter"
+          />
+        </form>
+        <div v-if="anytimeTasks.length" class="task-list">
           <div v-for="task in anytimeTasks" :key="task.id" class="task">
             <button
               class="check"
@@ -450,47 +510,102 @@ const allTasksForSelected = computed(() => [
 
       <!-- Tasks -->
       <div class="section tasks-section">
-        <p class="sec-title">Tasks & Reminders</p>
-
-        <div v-if="!allTasksForSelected.length" class="no-tasks">No tasks for this day</div>
-
-        <div v-else class="task-list">
-          <div v-for="task in allTasksForSelected" :key="(task.recurring ? 'r-' : 'o-') + task.id" class="task">
-            <button
-              class="check"
-              :class="{ done: task.done }"
-              @click="task.recurring
-                ? emit('toggle-recurring-task', selectedDate, task.id)
-                : emit('toggle-task', selectedDate, task.id)"
-            >
-              <svg v-if="task.done" width="10" height="10" viewBox="0 0 24 24" fill="none">
-                <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-              </svg>
-            </button>
-            <div class="task-body">
-              <span :class="['task-text', { done: task.done }]">{{ task.text }}</span>
-              <span v-if="task.reminderTime" class="reminder">
-                <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
-                  <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                </svg>
-                {{ task.reminderTime }}
-              </span>
-            </div>
-            <svg v-if="task.recurring" class="repeat-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" title="Recurring — edit or remove from Add Task">
-              <path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <button
-              v-else
-              class="del-btn"
-              @click="emit('delete-task', selectedDate, task.id)"
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </button>
+        <div class="sec-header">
+          <p class="sec-title">Tasks & Reminders</p>
+          <div class="view-toggle">
+            <button class="view-toggle-btn" :class="{ active: taskViewMode === 'day' }" @click="taskViewMode = 'day'">Day</button>
+            <button class="view-toggle-btn" :class="{ active: taskViewMode === 'month' }" @click="taskViewMode = 'month'">Month</button>
           </div>
         </div>
+
+        <template v-if="taskViewMode === 'day'">
+          <div v-if="!allTasksForSelected.length" class="no-tasks">No tasks for this day</div>
+
+          <div v-else class="task-list">
+            <div v-for="task in allTasksForSelected" :key="(task.recurring ? 'r-' : 'o-') + task.id" class="task">
+              <button
+                class="check"
+                :class="{ done: task.done }"
+                @click="task.recurring
+                  ? emit('toggle-recurring-task', selectedDate, task.id)
+                  : emit('toggle-task', selectedDate, task.id)"
+              >
+                <svg v-if="task.done" width="10" height="10" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                </svg>
+              </button>
+              <div class="task-body">
+                <span :class="['task-text', { done: task.done }]">{{ task.text }}</span>
+                <span v-if="task.reminderTime" class="reminder">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                  {{ task.reminderTime }}
+                </span>
+              </div>
+              <svg v-if="task.recurring" class="repeat-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" title="Recurring — edit or remove from Add Task">
+                <path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <button
+                v-else
+                class="del-btn"
+                @click="emit('delete-task', selectedDate, task.id)"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </template>
+
+        <template v-else>
+          <div v-if="!monthTasks.length" class="no-tasks">No tasks this month</div>
+
+          <div v-else class="month-task-groups">
+            <div v-for="group in monthTasks" :key="group.date" class="month-task-group">
+              <p class="month-group-label" :class="{ 'is-today': group.date === today }">{{ formatGroupLabel(group.date) }}</p>
+              <div class="task-list">
+                <div v-for="task in group.tasks" :key="(task.recurring ? 'r-' : 'o-') + task.id" class="task">
+                  <button
+                    class="check"
+                    :class="{ done: task.done }"
+                    @click="task.recurring
+                      ? emit('toggle-recurring-task', group.date, task.id)
+                      : emit('toggle-task', group.date, task.id)"
+                  >
+                    <svg v-if="task.done" width="10" height="10" viewBox="0 0 24 24" fill="none">
+                      <path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                  </button>
+                  <div class="task-body">
+                    <span :class="['task-text', { done: task.done }]">{{ task.text }}</span>
+                    <span v-if="task.reminderTime" class="reminder">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M12 7v5l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      {{ task.reminderTime }}
+                    </span>
+                  </div>
+                  <svg v-if="task.recurring" class="repeat-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" title="Recurring — edit or remove from Add Task">
+                    <path d="M17 1l4 4-4 4M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <button
+                    v-else
+                    class="del-btn"
+                    @click="emit('delete-task', group.date, task.id)"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                      <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -773,7 +888,23 @@ const allTasksForSelected = computed(() => [
   justify-content: space-between;
 }
 
+.month-label-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
 .month-label { font-weight: 600; font-size: 14px; }
+
+.today-link {
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+.today-link:hover { opacity: 0.7; }
 
 .nav-btn {
   width: 28px;
@@ -963,6 +1094,54 @@ const allTasksForSelected = computed(() => [
 .t-status.no { color: var(--muted); }
 
 .no-tasks { font-size: 12px; color: var(--muted); }
+
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.view-toggle-btn {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  transition: all 0.15s;
+}
+.view-toggle-btn:hover { color: var(--text); }
+.view-toggle-btn.active { background: var(--accent); color: white; }
+
+.month-task-groups { display: flex; flex-direction: column; gap: 12px; }
+.month-task-group { display: flex; flex-direction: column; gap: 5px; }
+.month-group-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.month-group-label.is-today { color: var(--accent); }
+
+.quick-add-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 7px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  color-scheme: dark;
+}
+.quick-add-input::placeholder { color: var(--muted); }
+.quick-add-input:focus { border-color: var(--accent); }
 
 /* Task list */
 .task-list { display: flex; flex-direction: column; gap: 5px; }
